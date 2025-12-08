@@ -488,18 +488,6 @@ Potential features for future versions:
 - Backup and restore functionality
 - Offline mode support
 
-## 📄 License
-
-[Specify your license here]
-
-## 👥 Contributors
-
-[Add contributors here]
-
-## 📞 Support
-
-For issues and questions, please contact [your contact information]
-
 ---
 
 **Built with ❤️ for Cheez n' Cream Co.**
