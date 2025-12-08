@@ -322,6 +322,20 @@ lib/
    - Configure Firebase Auth and Firestore
    - Update `firebase_options.dart` with your Firebase configuration
 
+4. **Environment Variables Setup**
+   - Create a `.env` file in the root directory of the project
+   - Add your Firebase API keys and configuration:
+     ```
+     GOOGLE_API_KEY=your_google_api_key_here
+     FIREBASE_APP_ID=your_firebase_app_id_here
+     FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id_here
+     FIREBASE_PROJECT_ID=your_project_id_here
+     FIREBASE_DATABASE_URL=your_database_url_here
+     FIREBASE_STORAGE_BUCKET=your_storage_bucket_here
+     ```
+   - The `.env` file is already added to `.gitignore` to keep your keys secure
+   - You can find these values in your `firebase_options.dart` file or Firebase console
+
 4. **Run the app**
    ```bash
    flutter run

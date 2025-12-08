@@ -3,6 +3,7 @@
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
     show defaultTargetPlatform, kIsWeb, TargetPlatform;
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 /// Default [FirebaseOptions] for use with your Firebase apps.
 ///
@@ -52,12 +53,22 @@ class DefaultFirebaseOptions {
     }
   }
 
-  static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'REMOVED_API_KEY_1',
-    appId: '1:507248350516:android:af86633137cd4b23510161',
-    messagingSenderId: '507248350516',
-    projectId: 'glowguide-48f966f6',
-    databaseURL: 'https://glowguide-48f966f6-default-rtdb.asia-southeast1.firebasedatabase.app',
-    storageBucket: 'glowguide-48f966f6.firebasestorage.app',
-  );
+  static FirebaseOptions get android {
+    // Get API key from .env file, fallback to hardcoded value if not found
+    final apiKey = dotenv.env['GOOGLE_API_KEY'] ?? 'REMOVED_API_KEY_1';
+    final appId = dotenv.env['FIREBASE_APP_ID'] ?? '1:507248350516:android:af86633137cd4b23510161';
+    final messagingSenderId = dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '507248350516';
+    final projectId = dotenv.env['FIREBASE_PROJECT_ID'] ?? 'glowguide-48f966f6';
+    final databaseURL = dotenv.env['FIREBASE_DATABASE_URL'] ?? 'https://glowguide-48f966f6-default-rtdb.asia-southeast1.firebasedatabase.app';
+    final storageBucket = dotenv.env['FIREBASE_STORAGE_BUCKET'] ?? 'glowguide-48f966f6.firebasestorage.app';
+    
+    return FirebaseOptions(
+      apiKey: apiKey,
+      appId: appId,
+      messagingSenderId: messagingSenderId,
+      projectId: projectId,
+      databaseURL: databaseURL,
+      storageBucket: storageBucket,
+    );
+  }
 }
