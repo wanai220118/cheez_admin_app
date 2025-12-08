@@ -54,13 +54,22 @@ class DefaultFirebaseOptions {
   }
 
   static FirebaseOptions get android {
-    // Get API key from .env file, fallback to hardcoded value if not found
-    final apiKey = dotenv.env['GOOGLE_API_KEY'] ?? 'REMOVED_API_KEY_1';
-    final appId = dotenv.env['FIREBASE_APP_ID'] ?? '1:507248350516:android:af86633137cd4b23510161';
-    final messagingSenderId = dotenv.env['FIREBASE_MESSAGING_SENDER_ID'] ?? '507248350516';
-    final projectId = dotenv.env['FIREBASE_PROJECT_ID'] ?? 'glowguide-48f966f6';
-    final databaseURL = dotenv.env['FIREBASE_DATABASE_URL'] ?? 'https://glowguide-48f966f6-default-rtdb.asia-southeast1.firebasedatabase.app';
-    final storageBucket = dotenv.env['FIREBASE_STORAGE_BUCKET'] ?? 'glowguide-48f966f6.firebasestorage.app';
+    // Get API key from .env file - required for security
+    final apiKey = dotenv.env['GOOGLE_API_KEY'];
+    final appId = dotenv.env['FIREBASE_APP_ID'];
+    final messagingSenderId = dotenv.env['FIREBASE_MESSAGING_SENDER_ID'];
+    final projectId = dotenv.env['FIREBASE_PROJECT_ID'];
+    final databaseURL = dotenv.env['FIREBASE_DATABASE_URL'];
+    final storageBucket = dotenv.env['FIREBASE_STORAGE_BUCKET'];
+    
+    // Validate that all required environment variables are set
+    if (apiKey == null || appId == null || messagingSenderId == null || 
+        projectId == null || databaseURL == null || storageBucket == null) {
+      throw Exception(
+        'Missing required Firebase configuration in .env file. '
+        'Please ensure all FIREBASE_* and GOOGLE_API_KEY variables are set.'
+      );
+    }
     
     return FirebaseOptions(
       apiKey: apiKey,

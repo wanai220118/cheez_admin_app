@@ -318,9 +318,10 @@ lib/
 3. **Firebase Setup**
    - Create a Firebase project
    - Add Android app to Firebase project
-   - Download `google-services.json` and place it in `android/app/`
+   - Download `google-services.json` from Firebase Console
+   - Place it in `android/app/google-services.json` (this file is gitignored for security)
    - Configure Firebase Auth and Firestore
-   - Update `firebase_options.dart` with your Firebase configuration
+   - **Important**: Never commit `google-services.json` to version control as it contains sensitive API keys
 
 4. **Environment Variables Setup**
    - Create a `.env` file in the root directory of the project
@@ -334,7 +335,8 @@ lib/
      FIREBASE_STORAGE_BUCKET=your_storage_bucket_here
      ```
    - The `.env` file is already added to `.gitignore` to keep your keys secure
-   - You can find these values in your `firebase_options.dart` file or Firebase console
+   - You can find these values in your Firebase console or `google-services.json` file
+   - **Security Note**: The app will throw an error if `.env` is missing - this prevents accidental use of hardcoded keys
 
 4. **Run the app**
    ```bash
@@ -422,6 +424,21 @@ lib/
 - Local credential storage (encrypted)
 - Input validation on all forms
 - Confirmation dialogs for destructive actions
+- Environment variables for API keys (`.env` file)
+- Sensitive files excluded from version control (`.gitignore`)
+
+### ⚠️ Security Best Practices
+- **Never commit API keys**: The `.env` file and `google-services.json` are in `.gitignore`
+- **Rotate keys if leaked**: If your API keys are exposed, immediately:
+  1. Go to Google Cloud Console → APIs & Services → Credentials
+  2. Delete or restrict the exposed API key
+  3. Create a new API key with proper restrictions
+  4. Update your `.env` file with the new key
+  5. Update `google-services.json` from Firebase Console
+- **Use API key restrictions**: In Google Cloud Console, restrict your API keys to specific:
+  - Android apps (package name + SHA-1)
+  - APIs (only Firebase services needed)
+  - IP addresses (if applicable)
 
 ## 📊 Data Models
 
