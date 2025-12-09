@@ -50,10 +50,10 @@ This admin application provides a complete solution for managing a dessert busin
   - Support for single items and combo packs
   - Multiple flavor selection for combo packs (Small and Standard combos)
   - Variant filtering (small/normal) for menu items
-  - Pickup date and time scheduling
+  - Pickup date and time scheduling (required field)
   - Payment method selection (COD or Pickup)
   - Payment channel (Cash or QR)
-  - COD fee calculation and address entry
+  - COD fee calculation and address entry (COD fee can be set to 0)
   - Automatic total calculation
 - **Order Viewing**:
   - View orders by date (Today mode) or all orders (All Time mode)
@@ -73,6 +73,23 @@ This admin application provides a complete solution for managing a dessert busin
   - Payment information (editable for incomplete orders)
   - Pickup date/time (editable)
   - Total pieces and price
+- **Receipt Generation**:
+  - Automatic receipt generation when saving orders
+  - Beautiful receipt design matching app theme
+  - Company logo display (logoresit.png)
+  - Receipt preview before sending
+  - Download receipt to device gallery
+  - WhatsApp integration for sending receipts to customers
+  - Auto-opens WhatsApp chat with customer's phone number
+  - Receipt includes:
+    - Company logo and name
+    - Order details (customer, date, time)
+    - Pickup schedule
+    - Order items list (simple text format)
+    - Total pieces and pricing
+    - COD fee (if applicable)
+    - Payment information
+    - Thank you message
 
 ### 👥 Customers Management
 - **Customer CRUD Operations**:
@@ -241,6 +258,9 @@ This admin application provides a complete solution for managing a dessert busin
 - `share_plus: ^10.1.2` - File sharing
 - `url_launcher: ^6.2.5` - URL launching
 - `flutter_dotenv: ^5.1.0` - Environment variables management
+- `screenshot: ^3.0.0` - Widget to image conversion for receipts
+- `cross_file: ^0.3.4` - Cross-platform file handling
+- `webview_flutter: ^4.4.2` - WebView support (for receipt viewing)
 
 ## 📁 Project Structure
 
@@ -288,13 +308,19 @@ lib/
 │   ├── svg_icon.dart
 │   ├── smooth_reveal.dart
 │   ├── flavor_count_tile.dart
-│   └── combo_flavor_tile.dart
+│   ├── combo_flavor_tile.dart
+│   └── receipt_widget.dart  # Receipt display widget
+├── screens/                  # UI screens
+│   ├── receipt_viewer.dart  # Receipt HTML viewer
+│   └── ...
 └── utils/                    # Utilities
     ├── app_theme.dart
     ├── price_calculator.dart
     ├── date_formatter.dart
     ├── navigation_helper.dart
-    └── constants.dart
+    ├── constants.dart
+    ├── receipt_image_generator.dart  # Receipt image generation
+    └── html_receipt_generator.dart   # HTML receipt template
 ```
 
 ## 🚀 Getting Started
@@ -380,9 +406,12 @@ lib/
 2. Tap "+" to create a new order
 3. Select or add customer
 4. Add items (single items or combo packs)
-5. Set pickup date/time
+5. Set pickup date/time (required)
 6. Choose payment method and channel
-7. Review total and save order
+7. Enter COD fee if applicable (can be 0)
+8. Review total and save order
+9. Receipt preview will appear automatically
+10. Download receipt to gallery and send via WhatsApp
 
 ### Tracking Expenses
 1. Navigate to Expenses from dashboard
@@ -514,11 +543,47 @@ lib/
 
 - Product images are stored locally on device (not uploaded to cloud)
 - Orders with zero items/pieces/price are automatically filtered out
-- COD fees are included in order totals
+- COD fees are included in order totals (COD fee can be set to 0)
 - All prices are in Malaysian Ringgit (RM)
 - Date formats follow Malaysian locale
 - The app uses environment variables from `.env` file for Firebase configuration
 - `google-services.json` should be placed in `android/app/` directory (gitignored for security)
+- Receipt images are saved to device gallery (Pictures/CheezReceipts folder on Android)
+- WhatsApp integration requires WhatsApp to be installed on the device
+- Receipt logo file (`logoresit.png`) should be placed in `assets/images/` directory
+- Pickup date/time is required when creating orders
+
+## 📄 Receipt Features
+
+### Receipt Generation
+- **Automatic Generation**: Receipts are automatically generated when orders are saved
+- **Beautiful Design**: Receipt matches app theme with brand colors (dark brown, golden brown, tan)
+- **Company Branding**: Includes company logo (`logoresit.png`) and name in header
+- **Complete Information**: Shows all order details including:
+  - Customer information
+  - Order date and time
+  - Pickup schedule
+  - Order items (simple text format: "Item Name (variant): quantity pcs")
+  - Total pieces
+  - Order price
+  - COD fee (if applicable)
+  - Payment information
+  - Thank you message
+
+### Receipt Sharing
+- **Preview Before Sending**: View receipt image before sharing
+- **Download to Gallery**: Save receipt image to device gallery
+- **WhatsApp Integration**: 
+  - Automatically opens WhatsApp chat with customer's phone number
+  - Receipt is saved to gallery for easy attachment
+  - Streamlined workflow for sending receipts to customers
+- **Image Format**: Receipts are generated as PNG images (high quality, 2x pixel ratio)
+
+### Receipt Styling
+- **Compact Design**: Optimized spacing to prevent overflow
+- **Responsive Layout**: Adapts to content length
+- **Professional Appearance**: Clean, modern design suitable for business use
+- **Brand Consistency**: Uses app theme colors throughout
 
 ## 🔄 Future Enhancements
 
@@ -530,6 +595,8 @@ Potential features for future versions:
 - Export to Excel
 - Backup and restore functionality
 - Offline mode support
+- Receipt templates customization
+- Email receipt sending
 
 ---
 

@@ -1,14 +1,331 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'dart:io';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:cross_file/cross_file.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as path;
 import '../services/firestore_service.dart';
 import '../models/product.dart';
 import '../models/order.dart';
 import '../models/customer.dart';
 import '../widgets/custom_textfield.dart';
 import '../utils/price_calculator.dart';
+import '../utils/receipt_image_generator.dart';
+import 'receipt_viewer.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+
+// Receipt Preview Screen Widget
+class _ReceiptPreviewScreen extends StatefulWidget {
+  final String imagePath;
+  final String phoneForWhatsApp;
+
+  const _ReceiptPreviewScreen({
+    required this.imagePath,
+    required this.phoneForWhatsApp,
+  });
+
+  @override
+  State<_ReceiptPreviewScreen> createState() => _ReceiptPreviewScreenState();
+}
+
+class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
+  bool _isDownloading = false;
+
+  Future<void> _downloadAndOpenWhatsApp() async {
+    if (_isDownloading) return;
+
+    setState(() {
+      _isDownloading = true;
+    });
+
+    try {
+      // Read the image file
+      final imageFile = File(widget.imagePath);
+      if (!await imageFile.exists()) {
+        Fluttertoast.showToast(
+          msg: "Receipt image file not found",
+          toastLength: Toast.LENGTH_LONG,
+        );
+        setState(() {
+          _isDownloading = false;
+        });
+        return;
+      }
+
+      Fluttertoast.showToast(msg: "Saving receipt to gallery...");
+      
+      if (Platform.isAndroid) {
+        // For Android, use platform channel to save directly to gallery via MediaStore
+        try {
+          const platform = MethodChannel('com.example.cheez_admin_app/gallery');
+          final imageBytes = await imageFile.readAsBytes();
+          
+          // Save via platform channel which handles MediaStore
+          final result = await platform.invokeMethod('saveImageToGallery', {
+            'imageBytes': imageBytes,
+            'fileName': 'Receipt_${DateTime.now().millisecondsSinceEpoch}.png',
+          });
+          
+          if (result == true) {
+            Fluttertoast.showToast(
+              msg: "Receipt saved to gallery!",
+              toastLength: Toast.LENGTH_SHORT,
+            );
+            
+            // Wait a moment for toast to show
+            await Future.delayed(Duration(milliseconds: 500));
+            
+            // Close the preview screen
+            Navigator.of(context).pop();
+            
+            // Open WhatsApp chat
+            await _openWhatsAppChat();
+            return;
+          }
+        } catch (e) {
+          print('Error saving via platform channel: $e');
+          // Fall through to fallback method
+        }
+        
+        // Fallback: Save to Downloads folder
+        final appDir = await getExternalStorageDirectory();
+        if (appDir != null) {
+          // Try to save to Downloads
+          final downloadsPath = '/storage/emulated/0/Download/CheezReceipts';
+          final downloadsDir = Directory(downloadsPath);
+          
+          if (!await downloadsDir.exists()) {
+            try {
+              await downloadsDir.create(recursive: true);
+            } catch (e) {
+              print('Could not create Downloads directory: $e');
+              // Use app directory as fallback
+              final fileName = "Receipt_${DateTime.now().millisecondsSinceEpoch}.png";
+              await imageFile.copy('${appDir.path}/$fileName');
+              Fluttertoast.showToast(
+                msg: "Receipt saved to app folder",
+                toastLength: Toast.LENGTH_SHORT,
+              );
+            }
+          }
+          
+          if (await downloadsDir.exists()) {
+            final fileName = "Receipt_${DateTime.now().millisecondsSinceEpoch}.png";
+            final savedFile = File(path.join(downloadsDir.path, fileName));
+            await imageFile.copy(savedFile.path);
+            
+            // Scan file to make it visible
+            try {
+              const platform = MethodChannel('com.example.cheez_admin_app/gallery');
+              await platform.invokeMethod('scanFile', {'path': savedFile.path});
+            } catch (e) {
+              print('Could not scan file: $e');
+            }
+            
+            Fluttertoast.showToast(
+              msg: "Receipt saved to Downloads!",
+              toastLength: Toast.LENGTH_SHORT,
+            );
+          }
+        }
+      } else if (Platform.isIOS) {
+        // For iOS, use application documents directory
+        final appDir = await getApplicationDocumentsDirectory();
+        final receiptsDir = Directory(path.join(appDir.path, 'Receipts'));
+        
+        if (!await receiptsDir.exists()) {
+          await receiptsDir.create(recursive: true);
+        }
+        
+        final fileName = "Receipt_${DateTime.now().millisecondsSinceEpoch}.png";
+        final savedFile = File(path.join(receiptsDir.path, fileName));
+        await imageFile.copy(savedFile.path);
+        
+        Fluttertoast.showToast(
+          msg: "Receipt saved!",
+          toastLength: Toast.LENGTH_SHORT,
+        );
+      }
+      
+      // Wait a moment for toast to show
+      await Future.delayed(Duration(milliseconds: 500));
+      
+      // Close the preview screen
+      Navigator.of(context).pop();
+      
+      // Open WhatsApp chat
+      await _openWhatsAppChat();
+      
+      Fluttertoast.showToast(
+        msg: "Receipt saved to gallery!",
+        toastLength: Toast.LENGTH_SHORT,
+      );
+      
+      // Wait a moment for toast to show
+      await Future.delayed(Duration(milliseconds: 500));
+      
+      // Close the preview screen
+      Navigator.of(context).pop();
+      
+      // Open WhatsApp chat
+      await _openWhatsAppChat();
+    } catch (e) {
+      print('Error downloading image: $e');
+      Fluttertoast.showToast(
+        msg: "Error saving receipt: ${e.toString()}",
+        toastLength: Toast.LENGTH_LONG,
+      );
+      setState(() {
+        _isDownloading = false;
+      });
+    }
+  }
+
+  Future<void> _openWhatsAppChat() async {
+    try {
+      Fluttertoast.showToast(msg: "Opening WhatsApp...");
+      final whatsappUrl = 'https://wa.me/${widget.phoneForWhatsApp}';
+      final uri = Uri.parse(whatsappUrl);
+      
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+        Fluttertoast.showToast(
+          msg: "WhatsApp opened. Attach the receipt from your gallery.",
+          toastLength: Toast.LENGTH_LONG,
+        );
+      } else {
+        Fluttertoast.showToast(
+          msg: "Cannot open WhatsApp. Please check if WhatsApp is installed.",
+          toastLength: Toast.LENGTH_LONG,
+        );
+      }
+    } catch (e) {
+      print('Error opening WhatsApp: $e');
+      Fluttertoast.showToast(
+        msg: "Error opening WhatsApp: ${e.toString()}",
+        toastLength: Toast.LENGTH_LONG,
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    print('_ReceiptPreviewScreen build called with path: ${widget.imagePath}');
+    final imageFile = File(widget.imagePath);
+    
+    return Scaffold(
+      backgroundColor: Colors.black87,
+      appBar: AppBar(
+        backgroundColor: Colors.brown[700],
+        title: Text(
+          'Receipt Preview',
+          style: TextStyle(color: Colors.white),
+        ),
+        iconTheme: IconThemeData(color: Colors.white),
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: EdgeInsets.all(16),
+          child: Image.file(
+            imageFile,
+            fit: BoxFit.contain,
+            errorBuilder: (context, error, stackTrace) {
+              print('Image.file error: $error');
+              print('Image path: ${widget.imagePath}');
+              return Container(
+                padding: EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64, color: Colors.red),
+                    SizedBox(height: 16),
+                    Text(
+                      'Error loading receipt image',
+                      style: TextStyle(color: Colors.red, fontSize: 18),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Path: ${widget.imagePath}',
+                      style: TextStyle(color: Colors.grey, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              );
+            },
+            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+              if (wasSynchronouslyLoaded) {
+                print('Image loaded synchronously');
+                return child;
+              }
+              if (frame != null) {
+                print('Image frame loaded');
+                return child;
+              }
+              print('Image loading...');
+              return Container(
+                padding: EdgeInsets.all(32),
+                child: Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.brown[700],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black26,
+              blurRadius: 4,
+              offset: Offset(0, -2),
+            ),
+          ],
+        ),
+        child: SafeArea(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton(
+                onPressed: _isDownloading ? null : () => Navigator.of(context).pop(),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: _isDownloading ? null : _downloadAndOpenWhatsApp,
+                icon: _isDownloading
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Icon(Icons.download),
+                label: Text(_isDownloading ? 'Downloading...' : 'Download & Open WhatsApp'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class AddOrderScreen extends StatefulWidget {
   @override
@@ -346,12 +663,9 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     return buffer.toString();
   }
 
-  Future<void> _sendWhatsAppReceipt(Order order, double orderPrice, double codFee) async {
-    final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
-      return; // No phone number, skip WhatsApp
-    }
-
+  Future<void> _showReceiptPreview(String imagePath, String phone) async {
+    print('_showReceiptPreview called with path: $imagePath');
+    
     // Clean phone number (remove spaces, dashes, etc.)
     String cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
     
@@ -365,52 +679,85 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       cleanPhone = '+60$cleanPhone';
     }
 
-    // Remove the + sign for the URL (wa.me doesn't need it)
-    String phoneForUrl = cleanPhone.replaceAll('+', '');
+    // Remove the + sign for WhatsApp share
+    String phoneForWhatsApp = cleanPhone.replaceAll('+', '');
 
-    final receiptMessage = _formatOrderReceipt(order, orderPrice, codFee);
-    final encodedMessage = Uri.encodeComponent(receiptMessage);
+    // Verify image file exists before showing dialog
+    final imageFile = File(imagePath);
+    final fileExists = await imageFile.exists();
+    print('Image file exists: $fileExists at path: $imagePath');
     
-    // Try multiple WhatsApp URL formats
-    final whatsappUrl = 'https://wa.me/$phoneForUrl?text=$encodedMessage';
-    final whatsappUrlAlt = 'https://api.whatsapp.com/send?phone=$phoneForUrl&text=$encodedMessage';
-
-    try {
-      // Try the primary WhatsApp URL
-      Uri uri = Uri.parse(whatsappUrl);
-      
-      if (await canLaunchUrl(uri)) {
-        bool launched = await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (launched) {
-          Fluttertoast.showToast(msg: "Opening WhatsApp...");
-          return;
-        }
-      }
-      
-      // If primary fails, try alternative URL
-      uri = Uri.parse(whatsappUrlAlt);
-      if (await canLaunchUrl(uri)) {
-        bool launched = await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-        if (launched) {
-          Fluttertoast.showToast(msg: "Opening WhatsApp...");
-          return;
-        }
-      }
-      
-      // If both fail, show error
+    if (!fileExists) {
       Fluttertoast.showToast(
-        msg: "Could not open WhatsApp. Please make sure WhatsApp is installed.",
+        msg: "Receipt image file not found at: $imagePath",
         toastLength: Toast.LENGTH_LONG,
       );
+      return;
+    }
+
+    if (!mounted) {
+      print('Widget not mounted, cannot show preview');
+      return;
+    }
+
+    // Use Navigator.push instead of showDialog for more reliable display
+    print('Navigating to receipt preview screen...');
+    final result = await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => _ReceiptPreviewScreen(
+          imagePath: imagePath,
+          phoneForWhatsApp: phoneForWhatsApp,
+        ),
+        fullscreenDialog: true,
+      ),
+    );
+    print('Receipt preview screen returned: $result');
+  }
+
+  Future<void> _sendWhatsAppReceipt(Order order, double orderPrice, double codFee) async {
+    final phone = _phoneController.text.trim();
+    if (phone.isEmpty) {
+      return; // No phone number, skip WhatsApp
+    }
+
+    try {
+      Fluttertoast.showToast(msg: "Generating receipt image...");
+      
+      // Step 1: Generate receipt image completely first
+      final imagePath = await ReceiptImageGenerator.saveReceiptImage(
+        order,
+        orderPrice,
+        codFee,
+      );
+
+      if (imagePath == null) {
+        Fluttertoast.showToast(
+          msg: "Error generating receipt image",
+          toastLength: Toast.LENGTH_LONG,
+        );
+        return;
+      }
+
+      // Step 2: Verify the image file exists and is readable
+      final imageFile = File(imagePath);
+      if (!await imageFile.exists()) {
+        Fluttertoast.showToast(
+          msg: "Receipt image file not found",
+          toastLength: Toast.LENGTH_LONG,
+        );
+        return;
+      }
+
+      // Wait a moment to ensure file is fully written
+      await Future.delayed(Duration(milliseconds: 300));
+      
+      Fluttertoast.showToast(msg: "Receipt image generated successfully!");
+
+      // Step 3: Show preview dialog
+      await _showReceiptPreview(imagePath, phone);
     } catch (e) {
       Fluttertoast.showToast(
-        msg: "Error opening WhatsApp: ${e.toString()}",
+        msg: "Error generating receipt: ${e.toString()}",
         toastLength: Toast.LENGTH_LONG,
       );
     }
@@ -418,6 +765,15 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
 
   void _saveOrder() async {
     if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    // Validate pickup date/time is required
+    if (pickupDateTime == null) {
+      Fluttertoast.showToast(
+        msg: "Please select pickup date and time",
+        toastLength: Toast.LENGTH_LONG,
+      );
       return;
     }
 
@@ -434,13 +790,18 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     double codFee = 0.0;
     String? codAddress;
     if (paymentMethod == 'cod') {
-      codFee = double.tryParse(_codAmountController.text.trim()) ?? 0.0;
-      if (codFee <= 0) {
-        Fluttertoast.showToast(
-          msg: "Please enter a valid COD amount",
-          toastLength: Toast.LENGTH_LONG,
-        );
-        return;
+      final codAmountText = _codAmountController.text.trim();
+      if (codAmountText.isEmpty) {
+        codFee = 0.0;
+      } else {
+        codFee = double.tryParse(codAmountText) ?? 0.0;
+        if (codFee < 0) {
+          Fluttertoast.showToast(
+            msg: "COD amount cannot be negative",
+            toastLength: Toast.LENGTH_LONG,
+          );
+          return;
+        }
       }
       codAddress = _codAddressController.text.trim().isNotEmpty
           ? _codAddressController.text.trim()
@@ -493,7 +854,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     _fs.addOrder(order);
     Fluttertoast.showToast(msg: "Order saved successfully");
     
-    // Send WhatsApp receipt if phone number is provided
+    // Auto-send WhatsApp receipt if phone number is provided
     final phone = _phoneController.text.trim();
     if (phone.isNotEmpty) {
       await _sendWhatsAppReceipt(order, orderPrice, codFee);
@@ -1124,11 +1485,12 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                       onTap: () => _selectPickupDateTime(context),
                       child: InputDecorator(
                         decoration: InputDecoration(
-                          labelText: "Pickup Date & Time",
+                          labelText: "Pickup Date & Time *",
                           prefixIcon: Icon(Icons.calendar_today),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
+                          errorText: pickupDateTime == null ? 'Required' : null,
                         ),
                         child: Text(
                           pickupDateTime != null

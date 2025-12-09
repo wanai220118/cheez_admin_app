@@ -4,6 +4,7 @@ import '../services/firestore_service.dart';
 import '../utils/date_formatter.dart';
 import '../utils/price_calculator.dart';
 import '../widgets/flavor_count_tile.dart';
+import 'receipt_viewer.dart';
 import 'package:intl/intl.dart';
 
 class OrderDetailScreen extends StatefulWidget {
@@ -83,6 +84,24 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       appBar: AppBar(
         title: Text("Order Details"),
         actions: [
+          IconButton(
+            icon: Icon(Icons.receipt),
+            tooltip: 'View Receipt',
+            onPressed: () {
+              // Calculate order price (without COD fee)
+              final orderPrice = _order.totalPrice - (_order.codFee ?? 0.0);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ReceiptViewerScreen(
+                    order: _order,
+                    orderPrice: orderPrice,
+                    codFee: _order.codFee ?? 0.0,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: Icon(Icons.edit_calendar),
             tooltip: 'Edit Pickup/COD DateTime',
