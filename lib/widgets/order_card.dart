@@ -7,7 +7,6 @@ class OrderCard extends StatelessWidget {
   final Order order;
   final VoidCallback? onTap;
   final Function(bool)? onStatusChanged;
-  final Function(bool)? onPaymentChanged;
   final VoidCallback? onDelete;
 
   const OrderCard({
@@ -15,7 +14,6 @@ class OrderCard extends StatelessWidget {
     required this.order,
     this.onTap,
     this.onStatusChanged,
-    this.onPaymentChanged,
     this.onDelete,
   }) : super(key: key);
 
@@ -118,29 +116,9 @@ class OrderCard extends StatelessWidget {
                   color: Colors.grey[500],
                 ),
               ),
-              if (onStatusChanged != null || onPaymentChanged != null || onDelete != null) ...[
+              if (onStatusChanged != null || onDelete != null) ...[
                 SizedBox(height: 12),
                 Divider(),
-                if (!isCompleted && onPaymentChanged != null) ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Payment',
-                        style: TextStyle(fontSize: 14),
-                      ),
-                      Checkbox(
-                        value: order.isPaid,
-                        onChanged: (value) {
-                          if (onPaymentChanged != null && value != null) {
-                            onPaymentChanged!(value);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                ],
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

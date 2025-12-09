@@ -235,10 +235,12 @@ This admin application provides a complete solution for managing a dessert busin
 - `flutter_svg: ^2.0.9` - SVG icon support
 - `image_picker: ^1.0.7` - Image selection
 - `path_provider: ^2.1.1` - File system paths
+- `path: ^1.8.3` - Path manipulation utilities
 - `pdf: ^3.11.1` - PDF generation
 - `printing: ^5.13.3` - PDF printing
 - `share_plus: ^10.1.2` - File sharing
 - `url_launcher: ^6.2.5` - URL launching
+- `flutter_dotenv: ^5.1.0` - Environment variables management
 
 ## 📁 Project Structure
 
@@ -269,6 +271,7 @@ lib/
 │   ├── expenses.dart
 │   ├── add_expense.dart
 │   ├── sales.dart
+│   ├── add_sale.dart
 │   ├── daily_summary.dart
 │   └── order_analysis.dart
 ├── services/                 # Business logic
@@ -336,9 +339,9 @@ lib/
      ```
    - The `.env` file is already added to `.gitignore` to keep your keys secure
    - You can find these values in your Firebase console or `google-services.json` file
-   - **Security Note**: The app will throw an error if `.env` is missing - this prevents accidental use of hardcoded keys
+   - **Security Note**: The app uses `flutter_dotenv` to load environment variables. While the app will continue without `.env` in development, it's recommended to have it for production use
 
-4. **Run the app**
+5. **Run the app**
    ```bash
    flutter run
    ```
@@ -395,6 +398,13 @@ lib/
 3. Navigate to Order Analysis for payment method analysis
 4. Use date picker to view historical data
 5. Export sales reports as PDF
+
+### Adding Sales
+1. Navigate to Sales from dashboard
+2. Tap "+" to add a new sale entry
+3. Select product from dropdown
+4. Enter quantity
+5. Save sale (automatically calculates total price)
 
 ## 🎯 Key Workflows
 
@@ -507,6 +517,8 @@ lib/
 - COD fees are included in order totals
 - All prices are in Malaysian Ringgit (RM)
 - Date formats follow Malaysian locale
+- The app uses environment variables from `.env` file for Firebase configuration
+- `google-services.json` should be placed in `android/app/` directory (gitignored for security)
 
 ## 🔄 Future Enhancements
 

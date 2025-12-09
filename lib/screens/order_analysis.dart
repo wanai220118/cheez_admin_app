@@ -4,6 +4,7 @@ import '../models/order.dart';
 import '../widgets/order_card.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/svg_icon.dart';
+import '../widgets/flavor_count_tile.dart';
 import '../utils/date_formatter.dart';
 import '../utils/price_calculator.dart';
 import 'order_detail.dart';
@@ -173,6 +174,24 @@ class _OrderAnalysisScreenState extends State<OrderAnalysisScreen> {
                 double pickupRevenue = orders.where((o) => o.paymentMethod == 'pickup')
                     .fold(0.0, (sum, order) => sum + order.totalPrice);
                 
+                // Calculate flavor counts
+                Map<String, int> flavorCount = {};
+                for (var order in orders) {
+                  // Count flavors from single items
+                  order.items.forEach((flavor, quantity) {
+                    final currentCount = flavorCount[flavor] ?? 0;
+                    flavorCount[flavor] = currentCount + quantity;
+                  });
+                  
+                  // Count flavors from combo packs
+                  order.comboPacks.forEach((combo, allocation) {
+                    allocation.forEach((flavor, quantity) {
+                      final currentCount = flavorCount[flavor] ?? 0;
+                      flavorCount[flavor] = currentCount + quantity;
+                    });
+                  });
+                }
+                
                 if (orders.isEmpty) {
                   return EmptyState(
                     message: "No pickup/COD orders scheduled for ${DateFormatter.formatDate(_selectedDate)}${_selectedPaymentMethod != null ? ' (${_selectedPaymentMethod!.toUpperCase()})' : ''}",
@@ -257,6 +276,40 @@ class _OrderAnalysisScreenState extends State<OrderAnalysisScreen> {
                         ],
                       ),
                     ),
+                    // Flavor Count Section
+                    if (flavorCount.isNotEmpty) ...[
+                      Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "Flavor Count",
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 8),
+                            Card(
+                              child: Column(
+                                children: (() {
+                                  var sortedEntries = flavorCount.entries.toList()
+                                    ..sort((a, b) => b.value.compareTo(a.value));
+                                  return sortedEntries
+                                      .map((entry) => FlavorCountTile(
+                                            flavor: entry.key,
+                                            count: entry.value,
+                                          ))
+                                      .toList();
+                                })(),
+                              ),
+                            ),
+                            SizedBox(height: 16),
+                          ],
+                        ),
+                      ),
+                    ],
                     // Orders List
                     Expanded(
                       child: ListView.builder(

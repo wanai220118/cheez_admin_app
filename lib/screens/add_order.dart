@@ -247,28 +247,30 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     buffer.writeln('    🍰 *CHEEZ N\' CREAM CO.*');
     buffer.writeln('══════════════════════');
     buffer.writeln('');
-    buffer.writeln('📋 *ORDER RECEIPT*');
+    buffer.writeln('📋 *RESIT PESANAN*');
     buffer.writeln('');
     
     // Order Information Section
-    buffer.writeln('*Order Details:*');
+    buffer.writeln('*Butiran Pesanan:*');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━');
-    buffer.writeln('👤 Customer: *${order.customerName}*');
+    buffer.writeln('👤 Pelanggan: *${order.customerName}*');
     if (order.phone.isNotEmpty) {
-      buffer.writeln('📱 Phone: ${order.phone}');
+      buffer.writeln('📱 Telefon: ${order.phone}');
     }
-    buffer.writeln('📅 Date: ${dateFormat.format(order.orderDate)}');
-    buffer.writeln('🕐 Time: ${timeFormat.format(order.orderDate)}');
-    if (order.pickupDateTime != null) {
-      buffer.writeln('');
-      buffer.writeln('*Pickup Schedule:*');
-      buffer.writeln('📅 Date: ${dateFormat.format(order.pickupDateTime!)}');
-      buffer.writeln('🕐 Time: ${timeFormat.format(order.pickupDateTime!)}');
-    }
+    buffer.writeln('📅 Tarikh: ${dateFormat.format(order.orderDate)}');
+    buffer.writeln('🕐 Masa: ${timeFormat.format(order.orderDate)}');
     buffer.writeln('');
     
+    // Pickup Schedule Section
+    if (order.pickupDateTime != null) {
+      buffer.writeln('*Jadual Ambil:*');
+      buffer.writeln('📅 Tarikh: ${dateFormat.format(order.pickupDateTime!)}');
+      buffer.writeln('🕐 Masa: ${timeFormat.format(order.pickupDateTime!)}');
+      buffer.writeln('');
+    }
+    
     // Order Items Section
-    buffer.writeln('*Order Items:*');
+    buffer.writeln('*Item Pesanan:*');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('');
     
@@ -278,7 +280,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     if (order.items.isNotEmpty) {
       order.items.forEach((itemName, quantity) {
         buffer.writeln('$itemNumber. *$itemName*');
-        buffer.writeln('   Qty: $quantity pcs');
+        buffer.writeln('   • $itemName: $quantity pcs');
         buffer.writeln('');
         itemNumber++;
       });
@@ -287,9 +289,17 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     // Combo packs
     if (order.comboPacks.isNotEmpty) {
       order.comboPacks.forEach((comboType, allocation) {
-        final comboName = comboType.replaceAll('_', ' ').split(' ').map((word) => 
-          word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
-        ).join(' ');
+        // Format combo name: "small" -> "Small Combo", "standard" -> "Standard Combo"
+        String comboName;
+        if (comboType.toLowerCase() == 'small') {
+          comboName = 'Small Combo';
+        } else if (comboType.toLowerCase() == 'standard') {
+          comboName = 'Standard Combo';
+        } else {
+          comboName = comboType.replaceAll('_', ' ').split(' ').map((word) => 
+            word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
+          ).join(' ');
+        }
         buffer.writeln('$itemNumber. *$comboName Combo Pack*');
         allocation.forEach((flavor, quantity) {
           buffer.writeln('   • $flavor: $quantity pcs');
@@ -300,46 +310,38 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     }
     
     // Summary Section
+    buffer.writeln('*Ringkasan:*');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━');
-    buffer.writeln('*Summary:*');
-    buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━');
-    buffer.writeln('Total Pieces: *${order.totalPcs} pcs*');
-    buffer.writeln('Subtotal: ${PriceCalculator.formatPrice(orderPrice)}');
+    buffer.writeln('Jumlah Keping: *${order.totalPcs} pcs*');
+    buffer.writeln('Jumlah: ${PriceCalculator.formatPrice(orderPrice)}');
     if (paymentMethod == 'cod' && codFee > 0) {
-      buffer.writeln('COD Fee: ${PriceCalculator.formatPrice(codFee)}');
+      buffer.writeln('Yuran COD: ${PriceCalculator.formatPrice(codFee)}');
     }
     buffer.writeln('');
-    buffer.writeln('═══════════════════════');
-    buffer.writeln('*TOTAL: ${PriceCalculator.formatPrice(order.totalPrice)}*');
-    buffer.writeln('═══════════════════════');
+    buffer.writeln('*JUMLAH: ${PriceCalculator.formatPrice(order.totalPrice)}*');
     buffer.writeln('');
     
     // Payment Information
-    buffer.writeln('*Payment Information:*');
+    buffer.writeln('*Maklumat Pembayaran:*');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
-    buffer.writeln('Method: *${order.paymentMethod.toUpperCase()}*');
-    buffer.writeln('Status: ${order.isPaid ? "✅ *PAID*" : "⏳ *PENDING PAYMENT*"}');
+    String paymentMethodText = order.paymentMethod == 'pickup' ? 'AMBIL' : 'COD';
+    buffer.writeln('Kaedah: *$paymentMethodText*');
+    String paymentStatus = order.isPaid ? '✅ *DIBAYAR*' : '⏳ *BAYARAN BELUM DITERIMA*';
+    buffer.writeln('Status: $paymentStatus');
     if (order.paymentChannel.isNotEmpty) {
-      buffer.writeln('Channel: *${order.paymentChannel.toUpperCase()}*');
+      String channelText = order.paymentChannel == 'qr' ? 'QR' : 'TUNAI';
+      buffer.writeln('Saluran: *$channelText*');
     }
     if (paymentMethod == 'cod' && order.codAddress != null && order.codAddress!.isNotEmpty) {
       buffer.writeln('');
-      buffer.writeln('*Delivery Address:*');
+      buffer.writeln('*Alamat Penghantaran:*');
       buffer.writeln(order.codAddress!);
     }
     buffer.writeln('');
     
     // Footer
-    buffer.writeln('══════════════════════');
+    buffer.writeln('✨ *Terima kasih atas pesanan anda!* ✨');
     buffer.writeln('');
-    buffer.writeln('✨ *Thank you for your order!* ✨');
-    buffer.writeln('');
-    buffer.writeln('We appreciate your support and');
-    buffer.writeln('look forward to serving you again!');
-    buffer.writeln('');
-    buffer.writeln('For any inquiries, please contact us.');
-    buffer.writeln('');
-    buffer.writeln('══════════════════════');
     
     return buffer.toString();
   }
@@ -498,6 +500,125 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     }
     
     Navigator.pop(context);
+  }
+
+  Future<void> _showAddCustomerDialog(BuildContext context, List<Customer> existingCustomers) async {
+    final nameController = TextEditingController();
+    final contactController = TextEditingController();
+    final addressController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+
+    final result = await showDialog<Customer?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text("Add New Customer"),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CustomTextField(
+                  controller: nameController,
+                  label: "Name",
+                  prefixIcon: Icons.person,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter customer name';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 16),
+                CustomTextField(
+                  controller: contactController,
+                  label: "Contact Number",
+                  prefixIcon: Icons.phone,
+                  keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter contact number';
+                    }
+                    return null;
+                  },
+                ),
+                SizedBox(height: 16),
+                CustomTextField(
+                  controller: addressController,
+                  label: "Address",
+                  prefixIcon: Icons.location_on,
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter address';
+                    }
+                    return null;
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text("Cancel"),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                final customer = Customer(
+                  id: '',
+                  name: nameController.text.trim(),
+                  contactNo: contactController.text.trim(),
+                  address: addressController.text.trim(),
+                  createdAt: DateTime.now(),
+                  updatedAt: DateTime.now(),
+                );
+                Navigator.pop(context, customer);
+              }
+            },
+            child: Text("Add"),
+          ),
+        ],
+      ),
+    );
+
+    if (result != null) {
+      // Save the customer to Firestore
+      await _fs.addCustomer(result);
+      Fluttertoast.showToast(msg: "Customer added successfully");
+      
+      // Populate form fields with the new customer data immediately
+      setState(() {
+        _nameController.text = result.name;
+        _phoneController.text = result.contactNo;
+        _codAddressController.text = result.address;
+      });
+      
+      // Wait a bit for Firestore to update, then find the new customer in the stream
+      await Future.delayed(Duration(milliseconds: 300));
+      
+      // Get the first update from the stream to find the new customer
+      try {
+        final customers = await _fs.getAllCustomers().first;
+        final newCustomer = customers.firstWhere(
+          (c) => c.name == result.name && c.contactNo == result.contactNo,
+        );
+        
+        setState(() {
+          _selectedCustomerId = newCustomer.id;
+        });
+      } catch (e) {
+        // If customer not found, that's okay - form fields are already populated
+        // The StreamBuilder will update the dropdown automatically
+      }
+    }
+
+    // Dispose controllers
+    nameController.dispose();
+    contactController.dispose();
+    addressController.dispose();
   }
 
   Widget _buildProductCard(String productName, String variant, int quantity, Function(int) onQuantityChanged) {
@@ -927,40 +1048,53 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                           validCustomerId = null;
                         }
                         
-                        return DropdownButtonFormField<String?>(
-                          value: validCustomerId,
-                          decoration: InputDecoration(
-                            labelText: "Select Customer (optional)",
-                            prefixIcon: Icon(Icons.people),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(8),
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: DropdownButtonFormField<String?>(
+                                value: validCustomerId,
+                                decoration: InputDecoration(
+                                  labelText: "Select Customer (optional)",
+                                  prefixIcon: Icon(Icons.people),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                ),
+                                items: [
+                                  DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text("-- Select Customer --"),
+                                  ),
+                                  ...customers.map((customer) => DropdownMenuItem<String?>(
+                                    value: customer.id,
+                                    child: Text(customer.name),
+                                  )),
+                                ],
+                                onChanged: (String? customerId) {
+                                  setState(() {
+                                    _selectedCustomerId = customerId;
+                                    if (customerId != null) {
+                                      final customer = customers.firstWhere((c) => c.id == customerId);
+                                      _nameController.text = customer.name;
+                                      _phoneController.text = customer.contactNo;
+                                      _codAddressController.text = customer.address;
+                                    } else {
+                                      _nameController.clear();
+                                      _phoneController.clear();
+                                      _codAddressController.clear();
+                                    }
+                                  });
+                                },
+                              ),
                             ),
-                          ),
-                          items: [
-                            DropdownMenuItem<String?>(
-                              value: null,
-                              child: Text("-- Select Customer --"),
+                            SizedBox(width: 8),
+                            IconButton(
+                              icon: Icon(Icons.add_circle),
+                              color: Theme.of(context).primaryColor,
+                              tooltip: 'Add New Customer',
+                              onPressed: () => _showAddCustomerDialog(context, customers),
                             ),
-                            ...customers.map((customer) => DropdownMenuItem<String?>(
-                              value: customer.id,
-                              child: Text(customer.name),
-                            )),
                           ],
-                          onChanged: (String? customerId) {
-                            setState(() {
-                              _selectedCustomerId = customerId;
-                              if (customerId != null) {
-                                final customer = customers.firstWhere((c) => c.id == customerId);
-                                _nameController.text = customer.name;
-                                _phoneController.text = customer.contactNo;
-                                _codAddressController.text = customer.address;
-                              } else {
-                                _nameController.clear();
-                                _phoneController.clear();
-                                _codAddressController.clear();
-                              }
-                            });
-                          },
                         );
                       },
                     ),

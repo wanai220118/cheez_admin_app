@@ -207,6 +207,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         "Paid",
                         _order.isPaid ? "YES" : "NO",
                       ),
+                    if (_order.status != 'completed') ...[
+                      SizedBox(height: 8),
+                      _buildEditablePaymentChannelRow(),
+                    ],
                     if (_order.codFee != null) ...[
                       SizedBox(height: 8),
                       _buildInfoRow(
@@ -397,6 +401,66 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         codFee: _order.codFee,
                         codAddress: _order.codAddress,
                         paymentChannel: _order.paymentChannel,
+                        items: _order.items,
+                        comboPacks: _order.comboPacks,
+                        totalPcs: _order.totalPcs,
+                        totalPrice: _order.totalPrice,
+                        status: _order.status,
+                      );
+                    });
+                    await _fs.updateOrder(_order);
+                  }
+                },
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEditablePaymentChannelRow() {
+    return Row(
+      children: [
+        Icon(Icons.account_balance_wallet, size: 20, color: Colors.grey[600]),
+        SizedBox(width: 12),
+        Text(
+          "Payment Type: ",
+          style: TextStyle(
+            fontWeight: FontWeight.w500,
+            color: Colors.grey[700],
+          ),
+        ),
+        Expanded(
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              DropdownButton<String>(
+                value: _order.paymentChannel,
+                items: [
+                  DropdownMenuItem(
+                    value: 'cash',
+                    child: Text('Cash'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'qr',
+                    child: Text('QR'),
+                  ),
+                ],
+                onChanged: (value) async {
+                  if (value != null) {
+                    setState(() {
+                      _order = Order(
+                        id: _order.id,
+                        customerName: _order.customerName,
+                        phone: _order.phone,
+                        orderDate: _order.orderDate,
+                        pickupDateTime: _order.pickupDateTime,
+                        paymentMethod: _order.paymentMethod,
+                        isPaid: _order.isPaid,
+                        codFee: _order.codFee,
+                        codAddress: _order.codAddress,
+                        paymentChannel: value,
                         items: _order.items,
                         comboPacks: _order.comboPacks,
                         totalPcs: _order.totalPcs,

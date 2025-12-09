@@ -59,14 +59,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
     await _fs.updateOrder(order);
   }
 
-  Future<void> _handlePaymentChange(BuildContext context, Order order, bool value) async {
-    order.isPaid = value;
-    await _fs.updateOrder(order);
-    Fluttertoast.showToast(
-      msg: value ? "Payment marked as received" : "Payment marked as not received",
-    );
-  }
-
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
       context: context,
@@ -299,7 +291,6 @@ class _OrdersScreenState extends State<OrdersScreen> {
                           OrderDetailScreen(order: o),
                         ),
                         onStatusChanged: (value) => _handleStatusChange(context, o, value),
-                        onPaymentChanged: (value) => _handlePaymentChange(context, o, value),
                         onDelete: () => _showDeleteDialog(context, o),
                       ),
                     );
