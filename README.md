@@ -2,6 +2,15 @@
 
 A comprehensive Flutter-based admin application for managing orders, products, customers, expenses, and sales analytics for Cheez n' Cream Co.
 
+## ⚠️ CRITICAL SECURITY NOTICE
+
+**If you see a GitHub secret scanning alert for exposed API keys:**
+1. **IMMEDIATELY rotate your Firebase API keys** in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
+2. Download a new `google-services.json` from Firebase Console
+3. Replace the existing `android/app/google-services.json` file
+4. The `google-services.json` file is already in `.gitignore` to prevent future commits
+5. Consider using environment variables for sensitive configuration
+
 ## 📱 Overview
 
 This admin application provides a complete solution for managing a dessert business, featuring real-time data synchronization, comprehensive reporting, and intuitive user interface. Built with Flutter and Firebase, it offers seamless management of all business operations.
@@ -349,8 +358,10 @@ lib/
    - Add Android app to Firebase project
    - Download `google-services.json` from Firebase Console
    - Place it in `android/app/google-services.json` (this file is gitignored for security)
+   - A template file `android/app/google-services.json.example` is provided as a reference
    - Configure Firebase Auth and Firestore
    - **Important**: Never commit `google-services.json` to version control as it contains sensitive API keys
+   - **If your API keys were exposed**: Immediately rotate them in Google Cloud Console and download a new `google-services.json`
 
 4. **Environment Variables Setup**
    - Create a `.env` file in the root directory of the project
