@@ -328,6 +328,10 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
 }
 
 class AddOrderScreen extends StatefulWidget {
+  final Order? existingOrder;
+  
+  const AddOrderScreen({Key? key, this.existingOrder}) : super(key: key);
+  
   @override
   State<AddOrderScreen> createState() => _AddOrderScreenState();
 }
@@ -369,6 +373,51 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   void initState() {
     super.initState();
     _loadProducts();
+    
+    // If editing, prefill with existing order data
+    if (widget.existingOrder != null) {
+      final order = widget.existingOrder!;
+      _nameController.text = order.customerName;
+      _phoneController.text = order.phone;
+      pickupDateTime = order.pickupDateTime;
+      paymentMethod = order.paymentMethod;
+      isPaid = order.isPaid;
+      paymentChannel = order.paymentChannel;
+      if (order.codFee != null) {
+        _codAmountController.text = order.codFee!.toStringAsFixed(2);
+      }
+      if (order.codAddress != null) {
+        _codAddressController.text = order.codAddress!;
+      }
+      
+      // Parse items from order
+      order.items.forEach((itemName, quantity) {
+        // Parse format: "Product Name (variant)"
+        final match = RegExp(r'^(.+?)\s*\((.+?)\)$').firstMatch(itemName);
+        if (match != null) {
+          final productName = match.group(1)!.trim();
+          final variant = match.group(2)!.trim();
+          if (!singleItems.containsKey(productName)) {
+            singleItems[productName] = {'normal': 0, 'small': 0};
+          }
+          singleItems[productName]![variant] = quantity;
+        }
+      });
+      
+      // Parse combo packs
+      order.comboPacks.forEach((comboKey, allocation) {
+        // Parse format: "small_combo" or "standard_combo"
+        final comboType = comboKey.replaceAll('_combo', '');
+        if (comboType == 'small' || comboType == 'standard') {
+          if (!comboItems.containsKey(comboType)) {
+            comboItems[comboType] = {};
+          }
+          allocation.forEach((flavor, quantity) {
+            comboItems[comboType]![flavor] = quantity;
+          });
+        }
+      });
+    }
   }
 
   void _loadProducts() {
@@ -834,10 +883,10 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
 
     final orderPrice = _calculateTotal();
     final order = Order(
-      id: '',
+      id: widget.existingOrder?.id ?? '',
       customerName: _nameController.text.trim(),
       phone: _phoneController.text.trim(),
-      orderDate: DateTime.now(),
+      orderDate: widget.existingOrder?.orderDate ?? DateTime.now(),
       pickupDateTime: pickupDateTime,
       paymentMethod: paymentMethod,
       isPaid: isPaid,
@@ -848,19 +897,24 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       comboPacks: comboPacks,
       totalPcs: totalPcs,
       totalPrice: orderPrice + (paymentMethod == 'cod' ? codFee : 0.0),
-      status: 'pending',
+      status: widget.existingOrder?.status ?? 'pending',
     );
 
-    _fs.addOrder(order);
-    Fluttertoast.showToast(msg: "Order saved successfully");
-    
-    // Auto-send WhatsApp receipt if phone number is provided
-    final phone = _phoneController.text.trim();
-    if (phone.isNotEmpty) {
-      await _sendWhatsAppReceipt(order, orderPrice, codFee);
+    if (widget.existingOrder != null) {
+      _fs.updateOrder(order);
+      Fluttertoast.showToast(msg: "Order updated successfully");
+    } else {
+      _fs.addOrder(order);
+      Fluttertoast.showToast(msg: "Order saved successfully");
+      
+      // Auto-send WhatsApp receipt if phone number is provided
+      final phone = _phoneController.text.trim();
+      if (phone.isNotEmpty) {
+        await _sendWhatsAppReceipt(order, orderPrice, codFee);
+      }
     }
     
-    Navigator.pop(context);
+    Navigator.pop(context, order);
   }
 
   Future<void> _showAddCustomerDialog(BuildContext context, List<Customer> existingCustomers) async {
@@ -1386,7 +1440,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     final totalPcs = _calculateTotalPcs();
 
     return Scaffold(
-      appBar: AppBar(title: Text("Add Customer Order")),
+      appBar: AppBar(title: Text(widget.existingOrder != null ? "Edit Order" : "Add Customer Order")),
       body: Form(
         key: _formKey,
         child: Column(
@@ -1475,7 +1529,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                     SizedBox(height: 16),
                     CustomTextField(
                       controller: _phoneController,
-                      label: "Phone Number (optional)",
+                      label: "Phone Number",
                       prefixIcon: Icons.phone,
                       keyboardType: TextInputType.phone,
                     ),
@@ -1485,7 +1539,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                       onTap: () => _selectPickupDateTime(context),
                       child: InputDecorator(
                         decoration: InputDecoration(
-                          labelText: "Pickup Date & Time *",
+                          labelText: "Pickup Date & Time",
                           prefixIcon: Icon(Icons.calendar_today),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -1676,8 +1730,6 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                         })
                         .toList(),
                     SizedBox(height: 24),
-                    // Combo Section
-                    _buildComboSection(),
                   ],
                 ),
               ),

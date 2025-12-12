@@ -372,35 +372,56 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                 Builder(
                                   builder: (context) {
                                     final currentValue = item.itemNameController.text.trim();
+                                    final subcategoriesWithEtc = [..._subcategories[_category]!, 'etc.'];
                                     final isValidSubcategory = _subcategories[_category]!.contains(currentValue);
-                                    return DropdownButtonFormField<String>(
-                                      value: currentValue.isEmpty || !isValidSubcategory 
-                                          ? null 
-                                          : currentValue,
-                                      decoration: InputDecoration(
-                                        labelText: "Item Name",
-                                        prefixIcon: Icon(Icons.shopping_bag),
-                                        border: OutlineInputBorder(
-                                          borderRadius: BorderRadius.circular(8),
+                                    final isEtcOrCustom = !isValidSubcategory && currentValue.isNotEmpty;
+                                    
+                                    return Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        DropdownButtonFormField<String>(
+                                          value: currentValue.isEmpty || isEtcOrCustom
+                                              ? null
+                                              : currentValue,
+                                          decoration: InputDecoration(
+                                            labelText: "Select Item (optional)",
+                                            prefixIcon: Icon(Icons.shopping_bag),
+                                            border: OutlineInputBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          items: subcategoriesWithEtc
+                                              .map((sub) => DropdownMenuItem(
+                                                    value: sub,
+                                                    child: Text(sub),
+                                                  ))
+                                              .toList(),
+                                          onChanged: (value) {
+                                            setState(() {
+                                              if (value == 'etc.') {
+                                                item.itemNameController.text = '';
+                                              } else if (value != null) {
+                                                item.itemNameController.text = value;
+                                              }
+                                            });
+                                          },
                                         ),
-                                      ),
-                                      items: _subcategories[_category]!
-                                          .map((sub) => DropdownMenuItem(
-                                                value: sub,
-                                                child: Text(sub),
-                                              ))
-                                          .toList(),
-                                      onChanged: (value) {
-                                        setState(() {
-                                          item.itemNameController.text = value ?? '';
-                                        });
-                                      },
-                                      validator: (value) {
-                                        if (value == null || value.trim().isEmpty) {
-                                          return 'Required';
-                                        }
-                                        return null;
-                                      },
+                                        SizedBox(height: 12),
+                                        CustomTextField(
+                                          controller: item.itemNameController,
+                                          label: "Item Name",
+                                          prefixIcon: Icons.edit,
+                                          validator: (value) {
+                                            if (value == null || value.trim().isEmpty) {
+                                              return 'Please enter item name';
+                                            }
+                                            return null;
+                                          },
+                                          onChanged: (value) {
+                                            setState(() {});
+                                          },
+                                        ),
+                                      ],
                                     );
                                   },
                                 )

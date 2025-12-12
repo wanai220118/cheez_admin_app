@@ -2,15 +2,6 @@
 
 A comprehensive Flutter-based admin application for managing orders, products, customers, expenses, and sales analytics for Cheez n' Cream Co.
 
-## ⚠️ CRITICAL SECURITY NOTICE
-
-**If you see a GitHub secret scanning alert for exposed API keys:**
-1. **IMMEDIATELY rotate your Firebase API keys** in the [Google Cloud Console](https://console.cloud.google.com/apis/credentials)
-2. Download a new `google-services.json` from Firebase Console
-3. Replace the existing `android/app/google-services.json` file
-4. The `google-services.json` file is already in `.gitignore` to prevent future commits
-5. Consider using environment variables for sensitive configuration
-
 ## 📱 Overview
 
 This admin application provides a complete solution for managing a dessert business, featuring real-time data synchronization, comprehensive reporting, and intuitive user interface. Built with Flutter and Firebase, it offers seamless management of all business operations.
@@ -56,14 +47,14 @@ This admin application provides a complete solution for managing a dessert busin
 ### 📦 Orders Management
 - **Order Creation**:
   - Customer selection from existing customers or new customer entry
-  - Support for single items and combo packs
-  - Multiple flavor selection for combo packs (Small and Standard combos)
+  - Support for single items with automatic combo pricing (6 small items = RM10, 3 standard items = RM10)
   - Variant filtering (small/normal) for menu items
-  - Pickup date and time scheduling (required field)
+  - Pickup date and time scheduling (required field, no asterisk shown but still required)
+  - Phone number field (no "optional" label)
   - Payment method selection (COD or Pickup)
   - Payment channel (Cash or QR)
   - COD fee calculation and address entry (COD fee can be set to 0)
-  - Automatic total calculation
+  - Automatic total calculation with combo pricing
 - **Order Viewing**:
   - View orders by date (Today mode) or all orders (All Time mode)
   - Status filtering (All, Pending, Completed)
@@ -79,6 +70,7 @@ This admin application provides a complete solution for managing a dessert busin
   - Customer information
   - Order items breakdown
   - Combo pack allocations by flavor
+  - **Edit Order Items**: Edit button to modify items in submitted orders
   - Payment information (editable for incomplete orders)
   - Pickup date/time (editable)
   - Total pieces and price
@@ -119,6 +111,7 @@ This admin application provides a complete solution for managing a dessert busin
   - Add expenses with multiple items
   - Category-based organization (Packaging, Ingredients, Utilities, Commission, Expense, Gas, Storage, etc.)
   - Subcategory support for detailed tracking
+  - **Custom Item Entry**: "etc." option available in all subcategory dropdowns for custom item names
   - Supplier management (Sabasun, ECO, Mydin, Shopee, Kedai Plastik Buluh Gading)
   - Date-based expense entry
 - **Expense Features**:
@@ -126,6 +119,7 @@ This admin application provides a complete solution for managing a dessert busin
   - Automatic total calculation per item and overall
   - Edit existing expenses
   - Delete expenses with confirmation
+  - **Flexible Item Entry**: Select from predefined subcategories or enter custom item names
 - **Expense Views**:
   - Today's expenses view
   - All expenses view
@@ -147,11 +141,18 @@ This admin application provides a complete solution for managing a dessert busin
   - Today's sales view
   - All time sales view
   - Date picker for historical sales data
-- **PDF Export**:
+- **PDF Export with Filters**:
   - Generate comprehensive sales reports in PDF format
-  - Includes summary statistics
-  - Top 20 selling products table
-  - Date and generation timestamp
+  - **Date Filtering Options**:
+    - Export current date data
+    - Export date range (select start and end dates)
+    - Export all time data
+  - **Content Filtering**:
+    - Include/exclude summary statistics
+    - Include/exclude top products table
+  - Includes summary statistics (when enabled)
+  - Top 20 selling products table (when enabled)
+  - Date range and generation timestamp
   - Share PDF via device sharing options
 
 ### 📋 Daily Summary
@@ -173,24 +174,35 @@ This admin application provides a complete solution for managing a dessert busin
 ### 🔍 Order Analysis
 - **Payment Method Analysis**:
   - Filter orders by payment method (All, COD, Pickup)
-  - COD orders count and revenue
-  - Pickup orders count and revenue
-  - Side-by-side comparison cards
+  - COD orders count and revenue (shown only when "All" is selected)
+  - Pickup orders count and revenue (shown only when "All" is selected)
+  - Side-by-side comparison cards (hidden when COD or Pickup tab is selected)
+  - Flavor count breakdown (shown only when "All" is selected)
 - **Date-based Analysis**:
   - Select any date to view scheduled pickup/COD orders
   - Shows orders based on pickup/COD date (not order creation date)
   - View orders filtered by payment method
   - Detailed order list with payment information
   - Displays orders that need to be picked up or delivered on the selected date
+- **PDF Export with Filters**:
+  - Export order analysis reports in PDF format
+  - **Content Filtering Options**:
+    - Include/exclude summary statistics
+    - Include/exclude flavor count breakdown
+    - Include/exclude orders list
+  - Date range and generation timestamp
+  - Share PDF via device sharing options
 
 ### 🎁 Combo Pack Support
-- **Combo Types**:
-  - Small Combo: Tiramisu, Cheesekut, Oreo Cheesekut
-  - Standard Combo: Tiramisu, Cheesekut, Oreo Cheesekut, Bahumisu
-- **Combo Allocation**:
-  - Select quantity for each flavor in combo packs
-  - Visual flavor selection interface
-  - Automatic calculation of combo pack totals
+- **Automatic Combo Pricing**:
+  - 6 small items automatically priced as RM10 combo
+  - 3 standard items automatically priced as RM10 combo
+  - Combo pricing applied automatically when quantities meet requirements
+  - Remaining items priced individually
+- **Combo Calculation**:
+  - Automatic detection of combo-eligible quantities
+  - Smart pricing calculation for mixed orders
+  - No separate combo section needed - handled automatically
 
 ### 💳 Payment Features
 - **Payment Methods**:
@@ -358,10 +370,8 @@ lib/
    - Add Android app to Firebase project
    - Download `google-services.json` from Firebase Console
    - Place it in `android/app/google-services.json` (this file is gitignored for security)
-   - A template file `android/app/google-services.json.example` is provided as a reference
    - Configure Firebase Auth and Firestore
    - **Important**: Never commit `google-services.json` to version control as it contains sensitive API keys
-   - **If your API keys were exposed**: Immediately rotate them in Google Cloud Console and download a new `google-services.json`
 
 4. **Environment Variables Setup**
    - Create a `.env` file in the root directory of the project

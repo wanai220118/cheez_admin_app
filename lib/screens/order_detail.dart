@@ -5,7 +5,9 @@ import '../utils/date_formatter.dart';
 import '../utils/price_calculator.dart';
 import '../widgets/flavor_count_tile.dart';
 import 'receipt_viewer.dart';
+import 'add_order.dart';
 import 'package:intl/intl.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 
 class OrderDetailScreen extends StatefulWidget {
   final Order order;
@@ -27,6 +29,21 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
   void initState() {
     super.initState();
     _order = widget.order;
+  }
+
+  Future<void> _editOrderItems(BuildContext context) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AddOrderScreen(existingOrder: _order),
+      ),
+    );
+    
+    if (result != null && result is Order) {
+      setState(() {
+        _order = result;
+      });
+    }
   }
 
   Future<void> _editPickupDateTime() async {
@@ -84,6 +101,11 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
       appBar: AppBar(
         title: Text("Order Details"),
         actions: [
+          IconButton(
+            icon: Icon(Icons.edit),
+            tooltip: 'Edit Order Items',
+            onPressed: () => _editOrderItems(context),
+          ),
           IconButton(
             icon: Icon(Icons.receipt),
             tooltip: 'View Receipt',
