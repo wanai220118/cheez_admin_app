@@ -213,8 +213,7 @@ This admin application provides a complete solution for managing a dessert busin
 
 ### 🎁 Combo Pack Support
 - **Automatic Combo Pricing**:
-  - 6 small items automatically priced as RM10 combo
-  - 3 standard items automatically priced as RM10 combo
+  - 7 small items automatically priced as RM10 combo
   - Combo pricing applied automatically when quantities meet requirements
   - Remaining items priced individually
 - **Combo Calculation**:
