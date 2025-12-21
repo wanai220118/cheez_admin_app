@@ -15,9 +15,17 @@ class FirestoreService {
   }
 
   // Products
-  Stream<List<Product>> getProducts() {
-    return _db.collection('products').snapshots().map((snapshot) =>
-        snapshot.docs.map((doc) => Product.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList());
+  Stream<List<Product>> getProducts({bool activeOnly = false}) {
+    if (activeOnly) {
+      return _db.collection('products')
+          .where('isActive', isEqualTo: true)
+          .snapshots()
+          .map((snapshot) =>
+              snapshot.docs.map((doc) => Product.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList());
+    } else {
+      return _db.collection('products').snapshots().map((snapshot) =>
+          snapshot.docs.map((doc) => Product.fromMap(doc.id, doc.data() as Map<String, dynamic>)).toList());
+    }
   }
 
   Stream<Product?> getProductById(String id) {
@@ -37,6 +45,29 @@ class FirestoreService {
 
   Future<void> deleteProduct(String id) async {
     await _db.collection('products').doc(id).delete();
+  }
+
+  // Delete all products by variant (series)
+  Future<void> deleteProductsByVariant(String variant) async {
+    final snapshot = await _db.collection('products')
+        .where('variant', isEqualTo: variant)
+        .get();
+    
+    final batch = _db.batch();
+    for (var doc in snapshot.docs) {
+      batch.delete(doc.reference);
+    }
+    await batch.commit();
+  }
+
+  // Add multiple products in batch
+  Future<void> addProductsBatch(List<Product> products) async {
+    final batch = _db.batch();
+    for (var product in products) {
+      final docRef = _db.collection('products').doc();
+      batch.set(docRef, product.toMap());
+    }
+    await batch.commit();
   }
 
   // Orders

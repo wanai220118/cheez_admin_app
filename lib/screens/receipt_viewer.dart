@@ -7,6 +7,8 @@ import 'package:fluttertoast/fluttertoast.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 import '../models/order.dart';
+import '../models/product.dart';
+import '../services/firestore_service.dart';
 import '../utils/html_receipt_generator.dart';
 import '../utils/price_calculator.dart';
 import '../utils/receipt_image_generator.dart';
@@ -30,11 +32,22 @@ class ReceiptViewerScreen extends StatefulWidget {
 class _ReceiptViewerScreenState extends State<ReceiptViewerScreen> {
   late WebViewController _controller;
   bool _isLoading = true;
+  List<Product> _products = [];
+  final FirestoreService _fs = FirestoreService();
 
   @override
   void initState() {
     super.initState();
-    _initializeWebView();
+    _loadProducts();
+  }
+
+  void _loadProducts() {
+    _fs.getProducts(activeOnly: true).listen((products) {
+      setState(() {
+        _products = products;
+      });
+      _initializeWebView();
+    });
   }
 
   void _initializeWebView() {
@@ -42,6 +55,7 @@ class _ReceiptViewerScreenState extends State<ReceiptViewerScreen> {
       widget.order,
       widget.orderPrice,
       widget.codFee,
+      products: _products,
     );
 
     _controller = WebViewController()
@@ -67,6 +81,7 @@ class _ReceiptViewerScreenState extends State<ReceiptViewerScreen> {
         widget.order,
         widget.orderPrice,
         widget.codFee,
+        products: _products,
       );
 
       if (imagePath == null) {
@@ -97,6 +112,7 @@ class _ReceiptViewerScreenState extends State<ReceiptViewerScreen> {
         widget.order,
         widget.orderPrice,
         widget.codFee,
+        products: _products,
       );
 
       await Clipboard.setData(ClipboardData(text: htmlContent));

@@ -19,7 +19,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _priceController = TextEditingController();
   final _costController = TextEditingController();
   final _descriptionController = TextEditingController();
-  String _variant = 'normal';
+  String _series = 'Tiramisu'; // Series: Tiramisu or Cheesekut
+  String _size = 'small'; // Size: small or big
   final FirestoreService _fs = FirestoreService();
   File? _selectedImage;
   String? _imagePath;
@@ -67,12 +68,14 @@ class _AddProductScreenState extends State<AddProductScreen> {
       final product = Product(
         id: "",
         name: _nameController.text.trim(),
-        variant: _variant,
+        variant: _series, // Using variant field to store series
         price: double.parse(_priceController.text),
         cost: double.tryParse(_costController.text) ?? 0.0,
         // Store local file path if selected, otherwise use placeholder asset
         imageUrl: _imagePath ?? 'assets/images/placeholder.jpg',
         description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+        isActive: true,
+        size: _size,
       );
       _fs.addProduct(product);
       Fluttertoast.showToast(msg: "Product added successfully");
@@ -140,19 +143,41 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 maxLines: 3,
               ),
               SizedBox(height: 16),
+              // Series field (replacing Variant)
               DropdownButtonFormField<String>(
-                value: _variant,
+                value: _series,
                 decoration: InputDecoration(
-                  labelText: "Variant",
+                  labelText: "Series",
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   prefixIcon: Icon(Icons.category),
                 ),
-                items: ['normal', 'small']
-                    .map((v) => DropdownMenuItem(value: v, child: Text(v.toUpperCase())))
+                items: ['Tiramisu', 'Cheesekut']
+                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                     .toList(),
-                onChanged: (v) => setState(() => _variant = v!),
+                onChanged: (s) => setState(() => _series = s!),
+              ),
+              SizedBox(height: 16),
+              // Size field
+              DropdownButtonFormField<String>(
+                value: _size,
+                decoration: InputDecoration(
+                  labelText: "Size",
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  prefixIcon: Icon(Icons.aspect_ratio),
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'small', child: Text('Small')),
+                  DropdownMenuItem(value: 'big', child: Text('Big')),
+                ],
+                onChanged: (value) {
+                  setState(() {
+                    _size = value ?? 'small';
+                  });
+                },
               ),
               SizedBox(height: 16),
               // Image Section (device-local image or placeholder)

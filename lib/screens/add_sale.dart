@@ -18,9 +18,11 @@ class _AddSaleScreenState extends State<AddSaleScreen> {
   @override
   void initState(){
     super.initState();
-    _fs.getProducts().listen((list){
-      setState(() => products = list);
-      if(list.isNotEmpty) selectedProduct = list[0];
+    _fs.getProducts(activeOnly: true).listen((list){
+      setState(() {
+        products = list;
+        if(products.isNotEmpty) selectedProduct = products[0];
+      });
     });
   }
 

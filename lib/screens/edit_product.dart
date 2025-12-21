@@ -26,7 +26,9 @@ class _EditProductScreenState extends State<EditProductScreen> {
   late TextEditingController _priceController;
   late TextEditingController _costController;
   late TextEditingController _descriptionController;
-  late String _variant;
+  late String _series; // Series: Tiramisu or Cheesekut
+  late String _size; // Size: small or big
+  late bool _isActive;
   final FirestoreService _fs = FirestoreService();
   File? _selectedImage;
   String? _imagePath;
@@ -38,8 +40,16 @@ class _EditProductScreenState extends State<EditProductScreen> {
     _priceController = TextEditingController(text: widget.product.price.toString());
     _costController = TextEditingController(text: widget.product.cost.toString());
     _descriptionController = TextEditingController(text: widget.product.description ?? '');
-    _variant = widget.product.variant;
+    // Use variant field to store series, default to Tiramisu if not found
+    _series = widget.product.variant;
+    // If variant is old format (normal/small), default to Tiramisu
+    if (_series != 'Tiramisu' && _series != 'Cheesekut') {
+      _series = 'Tiramisu';
+    }
+    // Initialize size from product.size or infer from price
+    _size = widget.product.size ?? (widget.product.price <= 2.0 ? 'small' : 'big');
     _imagePath = widget.product.imageUrl;
+    _isActive = widget.product.isActive;
   }
 
   @override
@@ -89,11 +99,13 @@ class _EditProductScreenState extends State<EditProductScreen> {
     final updatedProduct = Product(
       id: widget.product.id,
       name: _nameController.text,
-      variant: _variant,
+      variant: _series, // Using variant field to store series
       price: double.tryParse(_priceController.text) ?? 0.0,
       cost: double.tryParse(_costController.text) ?? 0.0,
       imageUrl: _imagePath ?? widget.product.imageUrl ?? 'assets/images/placeholder.jpg',
       description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+      isActive: _isActive,
+      size: _size,
     );
 
     _fs.updateProduct(updatedProduct);
@@ -148,19 +160,41 @@ class _EditProductScreenState extends State<EditProductScreen> {
               maxLines: 3,
             ),
             SizedBox(height: 16),
+            // Series field (replacing Variant)
             DropdownButtonFormField<String>(
-              value: _variant == 'combo' || _variant == 'combo_small' ? 'normal' : _variant,
+              value: _series,
               decoration: InputDecoration(
-                labelText: "Variant",
+                labelText: "Series",
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 prefixIcon: Icon(Icons.category),
               ),
-              items: ['normal', 'small']
-                  .map((v) => DropdownMenuItem(value: v, child: Text(v.toUpperCase())))
+              items: ['Tiramisu', 'Cheesekut']
+                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                   .toList(),
-              onChanged: (v) => setState(() => _variant = v!),
+              onChanged: (s) => setState(() => _series = s!),
+            ),
+            SizedBox(height: 16),
+            // Size field
+            DropdownButtonFormField<String>(
+              value: _size,
+              decoration: InputDecoration(
+                labelText: "Size",
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                prefixIcon: Icon(Icons.aspect_ratio),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'small', child: Text('Small')),
+                DropdownMenuItem(value: 'big', child: Text('Big')),
+              ],
+              onChanged: (value) {
+                setState(() {
+                  _size = value ?? 'small';
+                });
+              },
             ),
             SizedBox(height: 16),
             // Image Section (device-local image or placeholder)
@@ -252,6 +286,49 @@ class _EditProductScreenState extends State<EditProductScreen> {
               ),
             ),
             SizedBox(height: 24),
+            // Product Status Toggle
+            Card(
+              color: _isActive ? Colors.green[50] : Colors.red[50],
+              child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          "Product Status",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        SizedBox(height: 4),
+                        Text(
+                          _isActive ? "Active" : "Inactive",
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: _isActive ? Colors.green[700] : Colors.red[700],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Switch(
+                      value: _isActive,
+                      onChanged: (value) {
+                        setState(() {
+                          _isActive = value;
+                        });
+                      },
+                      activeColor: Colors.green,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 16),
             ElevatedButton(
               onPressed: saveProduct,
               style: ElevatedButton.styleFrom(

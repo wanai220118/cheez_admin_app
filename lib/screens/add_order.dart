@@ -42,7 +42,6 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
     });
 
     try {
-      // Read the image file
       final imageFile = File(widget.imagePath);
       if (!await imageFile.exists()) {
         Fluttertoast.showToast(
@@ -58,12 +57,10 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
       Fluttertoast.showToast(msg: "Saving receipt to gallery...");
       
       if (Platform.isAndroid) {
-        // For Android, use platform channel to save directly to gallery via MediaStore
         try {
           const platform = MethodChannel('com.example.cheez_admin_app/gallery');
           final imageBytes = await imageFile.readAsBytes();
           
-          // Save via platform channel which handles MediaStore
           final result = await platform.invokeMethod('saveImageToGallery', {
             'imageBytes': imageBytes,
             'fileName': 'Receipt_${DateTime.now().millisecondsSinceEpoch}.png',
@@ -75,25 +72,17 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
               toastLength: Toast.LENGTH_SHORT,
             );
             
-            // Wait a moment for toast to show
             await Future.delayed(Duration(milliseconds: 500));
-            
-            // Close the preview screen
             Navigator.of(context).pop();
-            
-            // Open WhatsApp chat
             await _openWhatsAppChat();
             return;
           }
         } catch (e) {
           print('Error saving via platform channel: $e');
-          // Fall through to fallback method
         }
         
-        // Fallback: Save to Downloads folder
         final appDir = await getExternalStorageDirectory();
         if (appDir != null) {
-          // Try to save to Downloads
           final downloadsPath = '/storage/emulated/0/Download/CheezReceipts';
           final downloadsDir = Directory(downloadsPath);
           
@@ -102,7 +91,6 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
               await downloadsDir.create(recursive: true);
             } catch (e) {
               print('Could not create Downloads directory: $e');
-              // Use app directory as fallback
               final fileName = "Receipt_${DateTime.now().millisecondsSinceEpoch}.png";
               await imageFile.copy('${appDir.path}/$fileName');
               Fluttertoast.showToast(
@@ -117,7 +105,6 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
             final savedFile = File(path.join(downloadsDir.path, fileName));
             await imageFile.copy(savedFile.path);
             
-            // Scan file to make it visible
             try {
               const platform = MethodChannel('com.example.cheez_admin_app/gallery');
               await platform.invokeMethod('scanFile', {'path': savedFile.path});
@@ -132,7 +119,6 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
           }
         }
       } else if (Platform.isIOS) {
-        // For iOS, use application documents directory
         final appDir = await getApplicationDocumentsDirectory();
         final receiptsDir = Directory(path.join(appDir.path, 'Receipts'));
         
@@ -150,28 +136,14 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
         );
       }
       
-      // Wait a moment for toast to show
       await Future.delayed(Duration(milliseconds: 500));
-      
-      // Close the preview screen
       Navigator.of(context).pop();
-      
-      // Open WhatsApp chat
       await _openWhatsAppChat();
       
       Fluttertoast.showToast(
         msg: "Receipt saved to gallery!",
         toastLength: Toast.LENGTH_SHORT,
       );
-      
-      // Wait a moment for toast to show
-      await Future.delayed(Duration(milliseconds: 500));
-      
-      // Close the preview screen
-      Navigator.of(context).pop();
-      
-      // Open WhatsApp chat
-      await _openWhatsAppChat();
     } catch (e) {
       print('Error downloading image: $e');
       Fluttertoast.showToast(
@@ -213,7 +185,6 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
 
   @override
   Widget build(BuildContext context) {
-    print('_ReceiptPreviewScreen build called with path: ${widget.imagePath}');
     final imageFile = File(widget.imagePath);
     
     return Scaffold(
@@ -233,8 +204,6 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
             imageFile,
             fit: BoxFit.contain,
             errorBuilder: (context, error, stackTrace) {
-              print('Image.file error: $error');
-              print('Image path: ${widget.imagePath}');
               return Container(
                 padding: EdgeInsets.all(32),
                 child: Column(
@@ -246,30 +215,7 @@ class _ReceiptPreviewScreenState extends State<_ReceiptPreviewScreen> {
                       'Error loading receipt image',
                       style: TextStyle(color: Colors.red, fontSize: 18),
                     ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Path: ${widget.imagePath}',
-                      style: TextStyle(color: Colors.grey, fontSize: 12),
-                      textAlign: TextAlign.center,
-                    ),
                   ],
-                ),
-              );
-            },
-            frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
-              if (wasSynchronouslyLoaded) {
-                print('Image loaded synchronously');
-                return child;
-              }
-              if (frame != null) {
-                print('Image frame loaded');
-                return child;
-              }
-              print('Image loading...');
-              return Container(
-                padding: EdgeInsets.all(32),
-                child: Center(
-                  child: CircularProgressIndicator(color: Colors.white),
                 ),
               );
             },
@@ -343,25 +289,19 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   final FirestoreService _fs = FirestoreService();
   String? _selectedCustomerId;
   
-  // Product selections
-  Map<String, Map<String, int>> singleItems = {}; // productName -> {variant: quantity}
-  Map<String, Map<String, int>> comboItems = {}; // comboType -> {flavor: quantity}
+  Map<String, Map<String, int>> singleItems = {};
   
   List<Product> allProducts = [];
-  String selectedComboType = 'small'; // 'small' or 'standard'
-  String selectedVariantFilter = 'small'; // 'all', 'small', or 'normal' for filtering menu items
+  String selectedSeriesFilter = 'all';
+  String selectedSizeFilter = 'all';
+  DateTime? orderDate;
   DateTime? pickupDateTime;
-  String paymentMethod = 'cod'; // 'cod' or 'pickup'
+  String paymentMethod = 'cod';
   bool isPaid = false;
-  String paymentChannel = 'cash'; // 'cash' or 'qr'
+  String paymentChannel = 'cash';
   final _codAmountController = TextEditingController();
   final _codAddressController = TextEditingController();
   
-  // Available flavors for combos
-  final List<String> smallComboFlavors = ['tiramisu', 'cheesekut', 'oreo cheesekut'];
-  final List<String> standardComboFlavors = ['tiramisu', 'cheesekut', 'oreo cheesekut', 'bahumisu'];
-  
-  // Product images mapping
   final Map<String, String> productImages = {
     'tiramisu': 'assets/images/placeholder.jpg',
     'cheesekut': 'assets/images/placeholder.jpg',
@@ -373,12 +313,13 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   void initState() {
     super.initState();
     _loadProducts();
+    orderDate = DateTime.now();
     
-    // If editing, prefill with existing order data
     if (widget.existingOrder != null) {
       final order = widget.existingOrder!;
       _nameController.text = order.customerName;
       _phoneController.text = order.phone;
+      orderDate = order.orderDate;
       pickupDateTime = order.pickupDateTime;
       paymentMethod = order.paymentMethod;
       isPaid = order.isPaid;
@@ -390,60 +331,60 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         _codAddressController.text = order.codAddress!;
       }
       
-      // Parse items from order
       order.items.forEach((itemName, quantity) {
-        // Parse format: "Product Name (variant)"
-        final match = RegExp(r'^(.+?)\s*\((.+?)\)$').firstMatch(itemName);
-        if (match != null) {
-          final productName = match.group(1)!.trim();
-          final variant = match.group(2)!.trim();
+        // Try to parse format: "ProductName (Variant, Size)" or "ProductName (Variant)"
+        final matchWithSize = RegExp(r'^(.+?)\s*\((.+?),\s*(.+?)\)$').firstMatch(itemName);
+        final matchWithoutSize = RegExp(r'^(.+?)\s*\((.+?)\)$').firstMatch(itemName);
+        
+        if (matchWithSize != null) {
+          // New format with size: "ProductName (Variant, Size)"
+          final productName = matchWithSize.group(1)!.trim();
+          final variant = matchWithSize.group(2)!.trim();
+          final size = matchWithSize.group(3)!.trim();
           if (!singleItems.containsKey(productName)) {
-            singleItems[productName] = {'normal': 0, 'small': 0};
+            singleItems[productName] = {};
           }
-          singleItems[productName]![variant] = quantity;
-        }
-      });
-      
-      // Parse combo packs
-      order.comboPacks.forEach((comboKey, allocation) {
-        // Parse format: "small_combo" or "standard_combo"
-        final comboType = comboKey.replaceAll('_combo', '');
-        if (comboType == 'small' || comboType == 'standard') {
-          if (!comboItems.containsKey(comboType)) {
-            comboItems[comboType] = {};
+          // Use composite key: variant|size
+          singleItems[productName]!['$variant|$size'] = quantity;
+        } else if (matchWithoutSize != null) {
+          // Old format without size: "ProductName (Variant)"
+          final productName = matchWithoutSize.group(1)!.trim();
+          final variant = matchWithoutSize.group(2)!.trim();
+          if (!singleItems.containsKey(productName)) {
+            singleItems[productName] = {};
           }
-          allocation.forEach((flavor, quantity) {
-            comboItems[comboType]![flavor] = quantity;
-          });
+          // For backward compatibility, try to infer size from product
+          try {
+            final product = allProducts.firstWhere(
+              (p) => p.name.toLowerCase() == productName.toLowerCase() && p.variant == variant,
+            );
+            final size = _getProductSize(product);
+            singleItems[productName]!['$variant|$size'] = quantity;
+          } catch (e) {
+            // Fallback: use variant only (old behavior)
+            singleItems[productName]![variant] = quantity;
+          }
         }
       });
     }
   }
 
   void _loadProducts() {
-    _fs.getProducts().listen((products) {
+    _fs.getProducts(activeOnly: true).listen((products) {
       setState(() {
         allProducts = products;
-        // Initialize single items
         for (var product in products) {
           if (product.variant != 'combo') {
             if (!singleItems.containsKey(product.name)) {
-              singleItems[product.name] = {'normal': 0, 'small': 0};
+              singleItems[product.name] = {};
+            }
+            // Use composite key: variant|size to separate small and big
+            final size = _getProductSize(product);
+            final variantKey = '${product.variant}|$size';
+            if (!singleItems[product.name]!.containsKey(variantKey)) {
+              singleItems[product.name]![variantKey] = 0;
             }
           }
-        }
-        // Initialize combo items
-        for (var flavor in smallComboFlavors) {
-          if (!comboItems.containsKey('small')) {
-            comboItems['small'] = {};
-          }
-          comboItems['small']![flavor] = 0;
-        }
-        for (var flavor in standardComboFlavors) {
-          if (!comboItems.containsKey('standard')) {
-            comboItems['standard'] = {};
-          }
-          comboItems['standard']![flavor] = 0;
         }
       });
     });
@@ -460,99 +401,83 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
 
   double _calculateTotal() {
     double total = 0.0;
+    int totalCheesekutPcs = 0;
+    Map<String, double> nonCheesekutItems = {};
 
-    // Collect all single items by variant with their prices
-    List<MapEntry<String, double>> smallItemsList = []; // List of (productName, price) pairs
-    List<MapEntry<String, double>> standardItemsList = []; // List of (productName, price) pairs
-
-    // Collect all single items by variant
     singleItems.forEach((productName, variants) {
-      variants.forEach((variant, quantity) {
+      variants.forEach((variantKey, quantity) {
         if (quantity > 0) {
-          final product = allProducts.firstWhere(
-            (p) => p.name.toLowerCase() == productName.toLowerCase() && p.variant == variant,
-            orElse: () => allProducts.firstWhere(
-              (p) => p.name.toLowerCase() == productName.toLowerCase(),
-            ),
-          );
+          // Parse variantKey: could be "variant|size" or just "variant" (old format)
+          String variant;
+          String? size;
+          if (variantKey.contains('|')) {
+            final parts = variantKey.split('|');
+            variant = parts[0];
+            size = parts.length > 1 ? parts[1] : null;
+          } else {
+            variant = variantKey;
+            size = null;
+          }
           
-          if (variant == 'small') {
-            // Add this item quantity times to the list
-            for (int i = 0; i < quantity; i++) {
-              smallItemsList.add(MapEntry(productName, product.price));
+          // Find the matching product
+          Product? product;
+          try {
+            if (size != null) {
+              // Try to find product with matching name, variant, and size
+              final sizeLower = size!.toLowerCase();
+              product = allProducts.firstWhere(
+                (p) {
+                  final pSize = _getProductSize(p);
+                  return p.name.toLowerCase() == productName.toLowerCase() && 
+                         p.variant == variant && 
+                         pSize == sizeLower;
+                },
+              );
+            } else {
+              // Fallback: find by name and variant only
+              product = allProducts.firstWhere(
+                (p) => p.name.toLowerCase() == productName.toLowerCase() && p.variant == variant,
+              );
             }
-          } else if (variant == 'normal') {
-            // Add this item quantity times to the list
-            for (int i = 0; i < quantity; i++) {
-              standardItemsList.add(MapEntry(productName, product.price));
+          } catch (e) {
+            // Final fallback: find by name only
+            try {
+              product = allProducts.firstWhere(
+                (p) => p.name.toLowerCase() == productName.toLowerCase(),
+              );
+            } catch (e) {
+              return; // Skip if product not found
             }
+          }
+          
+          final productSize = size ?? _getProductSize(product!);
+
+          if (product.variant == 'Cheesekut' && productSize == 'small' && (product.price - 1.50).abs() < 0.01) {
+            totalCheesekutPcs += quantity;
+          } else {
+            final itemKey = size != null ? '$productName ($variant, $size)' : '$productName ($variant)';
+            nonCheesekutItems[itemKey] = (nonCheesekutItems[itemKey] ?? 0) + (quantity * product.price);
           }
         }
       });
     });
 
-    // Calculate small items with combo pricing: 6 small items = RM 10
-    if (smallItemsList.isNotEmpty) {
-      int totalSmallItems = smallItemsList.length;
-      int smallComboPacks = totalSmallItems ~/ 6; // number of full combo packs
-      int remainingSmallItems = totalSmallItems % 6; // remaining items
-      
-      // Add combo pack price (RM 10 per pack of 6)
-      total += smallComboPacks * 10.0;
-      
-      // Add remaining small items at their individual prices
-      if (remainingSmallItems > 0) {
-        // Take the last remaining items (they weren't part of combo packs)
-        for (int i = totalSmallItems - remainingSmallItems; i < totalSmallItems; i++) {
-          total += smallItemsList[i].value;
-        }
-      }
+    if (totalCheesekutPcs > 0) {
+      int bulkPacks = totalCheesekutPcs ~/ 7;
+      int remainingPcs = totalCheesekutPcs % 7;
+      total += bulkPacks * 10.0;
+      total += remainingPcs * 1.50;
     }
 
-    // Calculate standard items with combo pricing: 3 standard items = RM 10
-    if (standardItemsList.isNotEmpty) {
-      int totalStandardItems = standardItemsList.length;
-      int standardComboPacks = totalStandardItems ~/ 3; // number of full combo packs
-      int remainingStandardItems = totalStandardItems % 3; // remaining items
-      
-      // Add combo pack price (RM 10 per pack of 3)
-      total += standardComboPacks * 10.0;
-      
-      // Add remaining standard items at their individual prices
-      if (remainingStandardItems > 0) {
-        // Take the last remaining items (they weren't part of combo packs)
-        for (int i = totalStandardItems - remainingStandardItems; i < totalStandardItems; i++) {
-          total += standardItemsList[i].value;
-        }
-      }
-    }
-
-    // Calculate combo items with tiered pricing (from combo section)
-    final smallComboCount = _getComboTotalCount('small');
-    final standardComboCount = _getComboTotalCount('standard');
-
-    // Small size: 6 pcs = RM10, 12 pcs = RM20, ... up to 60 pcs = RM100
-    if (smallComboCount > 0) {
-      int smallPacks = smallComboCount ~/ 6; // full packs of 6
-      double smallPrice = (smallPacks * 10).toDouble();
-      if (smallPrice > 100.0) smallPrice = 100.0; // cap at RM100
-      total += smallPrice;
-    }
-
-    // Standard size: 3 pcs = RM10, 6 pcs = RM20, ... up to 30 pcs = RM100
-    if (standardComboCount > 0) {
-      int standardPacks = standardComboCount ~/ 3; // full packs of 3
-      double standardPrice = (standardPacks * 10).toDouble();
-      if (standardPrice > 100.0) standardPrice = 100.0; // cap at RM100
-      total += standardPrice;
-    }
+    nonCheesekutItems.forEach((itemKey, price) {
+      total += price;
+    });
 
     return total;
   }
 
   int _calculateTotalPcs() {
     int totalPcs = 0;
-
     singleItems.forEach((productName, variants) {
       variants.forEach((variant, quantity) {
         if (quantity > 0) {
@@ -560,19 +485,45 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         }
       });
     });
-
-    comboItems.forEach((comboType, flavors) {
-      int comboCount = flavors.values.fold(0, (sum, qty) => sum + (qty > 0 ? qty : 0));
-      // Each combo unit counts as 1 piece
-      totalPcs += comboCount;
-    });
-
     return totalPcs;
   }
 
-  int _getComboTotalCount(String comboType) {
-    final flavors = comboItems[comboType] ?? {};
-    return flavors.values.fold(0, (sum, qty) => sum + (qty > 0 ? qty : 0));
+  Future<void> _selectOrderDate(BuildContext context) async {
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: orderDate ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(Duration(days: 30)),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (pickedDate != null) {
+      final TimeOfDay? pickedTime = await showTimePicker(
+        context: context,
+        initialTime: orderDate != null
+            ? TimeOfDay.fromDateTime(orderDate!)
+            : TimeOfDay.now(),
+      );
+      if (pickedTime != null) {
+        setState(() {
+          orderDate = DateTime(
+            pickedDate.year,
+            pickedDate.month,
+            pickedDate.day,
+            pickedTime.hour,
+            pickedTime.minute,
+          );
+        });
+      }
+    }
   }
 
   Future<void> _selectPickupDateTime(BuildContext context) async {
@@ -581,6 +532,16 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       initialDate: pickupDateTime ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime.now().add(Duration(days: 365)),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (pickedDate != null) {
       final TimeOfDay? pickedTime = await showTimePicker(
@@ -608,15 +569,12 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     final timeFormat = DateFormat('hh:mm a');
     final buffer = StringBuffer();
     
-    // Header with company branding
     buffer.writeln('══════════════════════');
     buffer.writeln('    🍰 *CHEEZ N\' CREAM CO.*');
     buffer.writeln('══════════════════════');
     buffer.writeln('');
     buffer.writeln('📋 *RESIT PESANAN*');
     buffer.writeln('');
-    
-    // Order Information Section
     buffer.writeln('*Butiran Pesanan:*');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('👤 Pelanggan: *${order.customerName}*');
@@ -627,7 +585,6 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     buffer.writeln('🕐 Masa: ${timeFormat.format(order.orderDate)}');
     buffer.writeln('');
     
-    // Pickup Schedule Section
     if (order.pickupDateTime != null) {
       buffer.writeln('*Jadual Ambil:*');
       buffer.writeln('📅 Tarikh: ${dateFormat.format(order.pickupDateTime!)}');
@@ -635,47 +592,113 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       buffer.writeln('');
     }
     
-    // Order Items Section
     buffer.writeln('*Item Pesanan:*');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('');
     
-    int itemNumber = 1;
-    
-    // Single items
-    if (order.items.isNotEmpty) {
-      order.items.forEach((itemName, quantity) {
-        buffer.writeln('$itemNumber. *$itemName*');
-        buffer.writeln('   • $itemName: $quantity pcs');
-        buffer.writeln('');
-        itemNumber++;
-      });
-    }
-    
-    // Combo packs
-    if (order.comboPacks.isNotEmpty) {
-      order.comboPacks.forEach((comboType, allocation) {
-        // Format combo name: "small" -> "Small Combo", "standard" -> "Standard Combo"
-        String comboName;
-        if (comboType.toLowerCase() == 'small') {
-          comboName = 'Small Combo';
-        } else if (comboType.toLowerCase() == 'standard') {
-          comboName = 'Standard Combo';
+    // Collect all items with prices
+    List<Map<String, dynamic>> itemsList = [];
+    order.items.forEach((itemName, quantity) {
+      // Parse format: "ProductName (Variant, Size)" or "ProductName (Variant)"
+      String displayName = itemName;
+      String? variant;
+      String? size;
+      double itemPrice = 0.0;
+      
+      final matchWithSize = RegExp(r'^(.+?)\s*\((.+?),\s*(.+?)\)$').firstMatch(itemName);
+      final matchWithoutSize = RegExp(r'^(.+?)\s*\((.+?)\)$').firstMatch(itemName);
+      
+      if (matchWithSize != null) {
+        // New format with size: extract product name, variant, and size
+        final productName = matchWithSize.group(1)!.trim();
+        variant = matchWithSize.group(2)!.trim();
+        size = matchWithSize.group(3)!.trim();
+        // Convert size to S/L format: small -> S, big -> L
+        String sizeDisplay = '';
+        if (size!.toLowerCase() == 'small') {
+          sizeDisplay = 'S';
+        } else if (size.toLowerCase() == 'big') {
+          sizeDisplay = 'L';
         } else {
-          comboName = comboType.replaceAll('_', ' ').split(' ').map((word) => 
-            word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
-          ).join(' ');
+          // If size is already S or L, use it as is
+          sizeDisplay = size.toUpperCase();
         }
-        buffer.writeln('$itemNumber. *$comboName Combo Pack*');
-        allocation.forEach((flavor, quantity) {
-          buffer.writeln('   • $flavor: $quantity pcs');
-        });
-        buffer.writeln('');
-        itemNumber++;
+        displayName = '$productName ($sizeDisplay)';
+      } else if (matchWithoutSize != null) {
+        // Old format without size: extract product name and variant
+        displayName = matchWithoutSize.group(1)!.trim();
+        variant = matchWithoutSize.group(2)!.trim();
+      }
+      
+      // Find the product to get price
+      try {
+        Product? product;
+        if (variant != null && size != null) {
+          // Try to find product with matching name, variant, and size
+          final sizeLower = size!.toLowerCase();
+          product = allProducts.firstWhere(
+            (p) {
+              final pSize = _getProductSize(p);
+              return p.name.toLowerCase() == displayName.toLowerCase() && 
+                     p.variant == variant && 
+                     pSize == sizeLower;
+            },
+            orElse: () => allProducts.firstWhere(
+              (p) => p.name.toLowerCase() == displayName.toLowerCase() && p.variant == variant,
+              orElse: () => allProducts.firstWhere(
+                (p) => p.name.toLowerCase() == displayName.toLowerCase(),
+              ),
+            ),
+          );
+        } else if (variant != null) {
+          product = allProducts.firstWhere(
+            (p) => p.name.toLowerCase() == displayName.toLowerCase() && p.variant == variant,
+            orElse: () => allProducts.firstWhere(
+              (p) => p.name.toLowerCase() == displayName.toLowerCase(),
+            ),
+          );
+        } else {
+          product = allProducts.firstWhere(
+            (p) => p.name.toLowerCase() == displayName.toLowerCase(),
+          );
+        }
+        itemPrice = product.price;
+      } catch (e) {
+        // If product not found, use 0.0
+        itemPrice = 0.0;
+      }
+      
+      itemsList.add({
+        'name': displayName,
+        'quantity': quantity,
+        'price': itemPrice,
       });
+    });
+    
+    if (itemsList.isNotEmpty) {
+      // Find the longest item name for table alignment
+      int maxNameLength = itemsList.map((e) => (e['name'] as String).length).reduce((a, b) => a > b ? a : b);
+      maxNameLength = maxNameLength > 20 ? maxNameLength : 20; // Minimum width
+      
+      // Helper function to repeat string
+      String repeatString(String str, int times) {
+        return List.filled(times, str).join('');
+      }
+      
+      // Add table rows (no header)
+      itemsList.forEach((item) {
+        final name = item['name'] as String;
+        final quantity = item['quantity'] as int;
+        final price = item['price'] as double;
+        final quantityText = '$quantity ${quantity == 1 ? 'pc' : 'pcs'}';
+        final priceText = PriceCalculator.formatPrice(price);
+        final namePadding = repeatString(' ', maxNameLength - name.length);
+        final quantityPadding = repeatString(' ', 8 - quantityText.length);
+        buffer.writeln('$name$namePadding│ $quantityText$quantityPadding│ $priceText');
+      });
+      buffer.writeln('');
     }
     
-    // Summary Section
     buffer.writeln('*Ringkasan:*');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('Jumlah Keping: *${order.totalPcs} pcs*');
@@ -687,7 +710,6 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     buffer.writeln('*JUMLAH: ${PriceCalculator.formatPrice(order.totalPrice)}*');
     buffer.writeln('');
     
-    // Payment Information
     buffer.writeln('*Maklumat Pembayaran:*');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━━');
     String paymentMethodText = order.paymentMethod == 'pickup' ? 'AMBIL' : 'COD';
@@ -704,8 +726,6 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       buffer.writeln(order.codAddress!);
     }
     buffer.writeln('');
-    
-    // Footer
     buffer.writeln('✨ *Terima kasih atas pesanan anda!* ✨');
     buffer.writeln('');
     
@@ -713,45 +733,31 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   }
 
   Future<void> _showReceiptPreview(String imagePath, String phone) async {
-    print('_showReceiptPreview called with path: $imagePath');
-    
-    // Clean phone number (remove spaces, dashes, etc.)
     String cleanPhone = phone.replaceAll(RegExp(r'[^\d+]'), '');
     
-    // If phone doesn't start with +, assume it's a local number and add country code
-    // Malaysia country code is +60
     if (!cleanPhone.startsWith('+')) {
-      // Remove leading 0 if present
       if (cleanPhone.startsWith('0')) {
         cleanPhone = cleanPhone.substring(1);
       }
       cleanPhone = '+60$cleanPhone';
     }
 
-    // Remove the + sign for WhatsApp share
     String phoneForWhatsApp = cleanPhone.replaceAll('+', '');
 
-    // Verify image file exists before showing dialog
     final imageFile = File(imagePath);
     final fileExists = await imageFile.exists();
-    print('Image file exists: $fileExists at path: $imagePath');
     
     if (!fileExists) {
       Fluttertoast.showToast(
-        msg: "Receipt image file not found at: $imagePath",
+        msg: "Receipt image file not found",
         toastLength: Toast.LENGTH_LONG,
       );
       return;
     }
 
-    if (!mounted) {
-      print('Widget not mounted, cannot show preview');
-      return;
-    }
+    if (!mounted) return;
 
-    // Use Navigator.push instead of showDialog for more reliable display
-    print('Navigating to receipt preview screen...');
-    final result = await Navigator.of(context).push(
+    await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (context) => _ReceiptPreviewScreen(
           imagePath: imagePath,
@@ -760,23 +766,20 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         fullscreenDialog: true,
       ),
     );
-    print('Receipt preview screen returned: $result');
   }
 
   Future<void> _sendWhatsAppReceipt(Order order, double orderPrice, double codFee) async {
     final phone = _phoneController.text.trim();
-    if (phone.isEmpty) {
-      return; // No phone number, skip WhatsApp
-    }
+    if (phone.isEmpty) return;
 
     try {
       Fluttertoast.showToast(msg: "Generating receipt image...");
       
-      // Step 1: Generate receipt image completely first
       final imagePath = await ReceiptImageGenerator.saveReceiptImage(
         order,
         orderPrice,
         codFee,
+        products: allProducts,
       );
 
       if (imagePath == null) {
@@ -787,7 +790,6 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         return;
       }
 
-      // Step 2: Verify the image file exists and is readable
       final imageFile = File(imagePath);
       if (!await imageFile.exists()) {
         Fluttertoast.showToast(
@@ -797,12 +799,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         return;
       }
 
-      // Wait a moment to ensure file is fully written
       await Future.delayed(Duration(milliseconds: 300));
-      
       Fluttertoast.showToast(msg: "Receipt image generated successfully!");
-
-      // Step 3: Show preview dialog
       await _showReceiptPreview(imagePath, phone);
     } catch (e) {
       Fluttertoast.showToast(
@@ -813,11 +811,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   }
 
   void _saveOrder() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+    if (!_formKey.currentState!.validate()) return;
 
-    // Validate pickup date/time is required
     if (pickupDateTime == null) {
       Fluttertoast.showToast(
         msg: "Please select pickup date and time",
@@ -835,7 +830,6 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       return;
     }
 
-    // COD validation
     double codFee = 0.0;
     String? codAddress;
     if (paymentMethod == 'cod') {
@@ -857,28 +851,23 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
           : null;
     }
 
-    // Prepare order items
     Map<String, int> orderItems = {};
     singleItems.forEach((productName, variants) {
-      variants.forEach((variant, quantity) {
+      variants.forEach((variantKey, quantity) {
         if (quantity > 0) {
-          orderItems['$productName ($variant)'] = quantity;
+          // Check if variantKey includes size (format: "variant|size")
+          if (variantKey.contains('|')) {
+            final parts = variantKey.split('|');
+            final variant = parts[0];
+            final size = parts.length > 1 ? parts[1] : '';
+            // Save with size: "ProductName (Variant, Size)"
+            orderItems['$productName ($variant, $size)'] = quantity;
+          } else {
+            // Old format without size (backward compatibility)
+            orderItems['$productName ($variantKey)'] = quantity;
+          }
         }
       });
-    });
-
-    // Prepare combo packs
-    Map<String, Map<String, int>> comboPacks = {};
-    comboItems.forEach((comboType, flavors) {
-      Map<String, int> flavorMap = {};
-      flavors.forEach((flavor, quantity) {
-        if (quantity > 0) {
-          flavorMap[flavor] = quantity;
-        }
-      });
-      if (flavorMap.isNotEmpty) {
-        comboPacks['${comboType}_combo'] = flavorMap;
-      }
     });
 
     final orderPrice = _calculateTotal();
@@ -886,7 +875,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       id: widget.existingOrder?.id ?? '',
       customerName: _nameController.text.trim(),
       phone: _phoneController.text.trim(),
-      orderDate: widget.existingOrder?.orderDate ?? DateTime.now(),
+      orderDate: orderDate ?? DateTime.now(),
       pickupDateTime: pickupDateTime,
       paymentMethod: paymentMethod,
       isPaid: isPaid,
@@ -894,7 +883,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       codAddress: codAddress,
       paymentChannel: paymentChannel,
       items: orderItems,
-      comboPacks: comboPacks,
+      comboPacks: {},
       totalPcs: totalPcs,
       totalPrice: orderPrice + (paymentMethod == 'cod' ? codFee : 0.0),
       status: widget.existingOrder?.status ?? 'pending',
@@ -903,18 +892,89 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     if (widget.existingOrder != null) {
       _fs.updateOrder(order);
       Fluttertoast.showToast(msg: "Order updated successfully");
+      Navigator.pop(context, order);
     } else {
       _fs.addOrder(order);
       Fluttertoast.showToast(msg: "Order saved successfully");
       
-      // Auto-send WhatsApp receipt if phone number is provided
+      // Show dialog to ask if admin wants to view receipt FIRST
+      final shouldViewReceipt = await showDialog<bool>(
+        context: context,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: Text(
+              'Order Created Successfully',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+              ),
+            ),
+            content: Text(
+              'Would you like to view the receipt?',
+              style: TextStyle(fontSize: 16),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: Text(
+                  'Skip',
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Theme.of(context).primaryColor,
+                ),
+                child: Text(
+                  'Yes',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+      
       final phone = _phoneController.text.trim();
-      if (phone.isNotEmpty) {
-        await _sendWhatsAppReceipt(order, orderPrice, codFee);
+      
+      if (shouldViewReceipt == true) {
+        // User chose "Yes" - generate receipt, show preview, and redirect to WhatsApp
+        if (phone.isNotEmpty) {
+          // Generate receipt and show preview with WhatsApp redirect
+          await _sendWhatsAppReceipt(order, orderPrice, codFee);
+        } else {
+          // No phone number, just show receipt viewer
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ReceiptViewerScreen(
+                order: order,
+                orderPrice: orderPrice,
+                codFee: codFee,
+              ),
+            ),
+          );
+        }
+        // After WhatsApp flow, go back to previous screen
+        Navigator.pop(context, order);
+      } else {
+        // User chose "Skip" - send WhatsApp in background if phone exists, then go back
+        if (phone.isNotEmpty) {
+          // Send WhatsApp receipt in background (don't await to avoid blocking)
+          _sendWhatsAppReceipt(order, orderPrice, codFee);
+        }
+        // Just go back
+        Navigator.pop(context, order);
       }
     }
-    
-    Navigator.pop(context, order);
   }
 
   Future<void> _showAddCustomerDialog(BuildContext context, List<Customer> existingCustomers) async {
@@ -926,7 +986,14 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     final result = await showDialog<Customer?>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text("Add New Customer"),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.person_add, color: Theme.of(context).colorScheme.primary),
+            SizedBox(width: 12),
+            Text("Add New Customer"),
+          ],
+        ),
         content: SingleChildScrollView(
           child: Form(
             key: formKey,
@@ -993,6 +1060,11 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                 Navigator.pop(context, customer);
               }
             },
+            style: ElevatedButton.styleFrom(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
             child: Text("Add"),
           ),
         ],
@@ -1000,21 +1072,17 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     );
 
     if (result != null) {
-      // Save the customer to Firestore
       await _fs.addCustomer(result);
       Fluttertoast.showToast(msg: "Customer added successfully");
       
-      // Populate form fields with the new customer data immediately
       setState(() {
         _nameController.text = result.name;
         _phoneController.text = result.contactNo;
         _codAddressController.text = result.address;
       });
       
-      // Wait a bit for Firestore to update, then find the new customer in the stream
       await Future.delayed(Duration(milliseconds: 300));
       
-      // Get the first update from the stream to find the new customer
       try {
         final customers = await _fs.getAllCustomers().first;
         final newCustomer = customers.firstWhere(
@@ -1025,92 +1093,121 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
           _selectedCustomerId = newCustomer.id;
         });
       } catch (e) {
-        // If customer not found, that's okay - form fields are already populated
-        // The StreamBuilder will update the dropdown automatically
+        // Form fields already populated
       }
     }
 
-    // Dispose controllers
     nameController.dispose();
     contactController.dispose();
     addressController.dispose();
   }
 
-  Widget _buildProductCard(String productName, String variant, int quantity, Function(int) onQuantityChanged) {
-    // Find product with matching variant, or fallback to any variant of the same name
-    Product? product;
-    try {
-      product = allProducts.firstWhere(
-      (p) => p.name.toLowerCase() == productName.toLowerCase() && p.variant == variant,
-      );
-    } catch (e) {
-      try {
-        product = allProducts.firstWhere(
-        (p) => p.name.toLowerCase() == productName.toLowerCase(),
-        );
-      } catch (e) {
-        product = Product(
-          id: '',
-          name: productName,
-          variant: variant,
-          price: 0,
-          cost: 0,
-        );
-      }
+  // Helper function to determine product size consistently
+  String _getProductSize(Product product) {
+    // Always use size field if available
+    if (product.size != null && product.size!.isNotEmpty) {
+      return product.size!.toLowerCase().trim();
     }
+    
+    // Infer size from price based on variant
+    if (product.variant == 'Tiramisu') {
+      // Tiramisu: small is RM 2.0, big is RM 7.0
+      if ((product.price - 2.0).abs() < 0.01) {
+        return 'small';
+      } else if ((product.price - 7.0).abs() < 0.01) {
+        return 'big';
+      } else {
+        // Fallback for any other price
+        return product.price <= 2.0 ? 'small' : 'big';
+      }
+    } else if (product.variant == 'Cheesekut') {
+      // Cheesekut: small is RM 1.50, big is typically > 2.0
+      if ((product.price - 1.50).abs() < 0.01) {
+        return 'small';
+      } else {
+        return 'big';
+      }
+    } else {
+      // Default: use price threshold
+      return product.price <= 2.0 ? 'small' : 'big';
+    }
+  }
 
-    // Get price for current variant
+  Widget _buildProductCardFromProduct(Product product, int quantity, Function(int) onQuantityChanged) {
+    // Use the product directly - no need to search
+    return _buildProductCard(product.name, product.variant, product, quantity, onQuantityChanged);
+  }
+
+  Widget _buildProductCard(String productName, String variant, Product product, int quantity, Function(int) onQuantityChanged) {
+    // Product is already provided, use it directly
     double displayPrice = product.price;
-    if (product.variant != variant) {
-      // Try to find the correct variant price
-      try {
-        final variantProduct = allProducts.firstWhere(
-          (p) => p.name.toLowerCase() == productName.toLowerCase() && p.variant == variant,
-    );
-        displayPrice = variantProduct.price;
-      } catch (e) {
-        displayPrice = product.price;
-      }
-    }
 
     return Card(
-      margin: EdgeInsets.symmetric(vertical: 8),
+      margin: EdgeInsets.symmetric(vertical: 6),
+      elevation: quantity > 0 ? 3 : 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: quantity > 0 
+          ? BorderSide(color: Theme.of(context).colorScheme.primary, width: 2)
+          : BorderSide.none,
+      ),
       child: Padding(
         padding: EdgeInsets.all(12),
         child: Row(
           children: [
-            // Product Image
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: product.imageUrl != null && !product.imageUrl!.startsWith('assets/')
-                  ? Image.file(
-                      File(product.imageUrl!),
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 100,
-                          height: 100,
-                          color: Colors.grey[300],
-                          child: Icon(Icons.image_not_supported),
-                        );
-                      },
-                    )
-                  : Image.asset(
-                      product.imageUrl ?? productImages[productName.toLowerCase()] ?? 'assets/images/placeholder.jpg',
-                      width: 100,
-                      height: 100,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 100,
-                          height: 100,
-                          color: Colors.grey[300],
-                          child: Icon(Icons.image_not_supported),
-                        );
-                      },
+            // Product Image with badge
+            Stack(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[200],
                     ),
+                    child: product.imageUrl != null && !product.imageUrl!.startsWith('assets/')
+                        ? Image.file(
+                            File(product.imageUrl!),
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(Icons.image_not_supported, color: Colors.grey);
+                            },
+                          )
+                        : Image.asset(
+                            product.imageUrl ?? productImages[productName.toLowerCase()] ?? 'assets/images/placeholder.jpg',
+                            width: 80,
+                            height: 80,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) {
+                              return Icon(Icons.image_not_supported, color: Colors.grey);
+                            },
+                          ),
+                  ),
+                ),
+                if (quantity > 0)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$quantity',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
             SizedBox(width: 12),
             Expanded(
@@ -1120,311 +1217,99 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                 children: [
                   Text(
                     productName,
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey[800],
+                    ),
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   SizedBox(height: 4),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: variant == 'Tiramisu' ? Colors.brown[100] : Colors.yellow[100],
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      variant,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: variant == 'Tiramisu' ? Colors.brown[800] : Colors.orange[900],
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: 6),
                   Text(
                     PriceCalculator.formatPrice(displayPrice),
-                    style: TextStyle(fontSize: 16, color: Colors.orange[900], fontWeight: FontWeight.w600),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      ChoiceChip(
-                        label: Text('Small'),
-                        selected: variant == 'small',
-                        labelStyle: TextStyle(
-                          color: variant == 'small' ? Colors.white : Colors.black87,
-                        ),
-                        selectedColor: Colors.green,
-                        onSelected: (selected) {
-                          if (selected) {
-                            final currentQty = singleItems[productName]![variant] ?? 0;
-                            singleItems[productName]!['small'] = currentQty;
-                            singleItems[productName]!['normal'] = 0;
-                            setState(() {});
-                          }
-                        },
-                      ),
-                      ChoiceChip(
-                        label: Text('Standard'),
-                        selected: variant == 'normal',
-                        labelStyle: TextStyle(
-                          color: variant == 'normal' ? Colors.white : Colors.black87,
-                        ),
-                        selectedColor: Colors.blue,
-                        onSelected: (selected) {
-                          if (selected) {
-                            final currentQty = singleItems[productName]![variant] ?? 0;
-                            singleItems[productName]!['normal'] = currentQty;
-                            singleItems[productName]!['small'] = 0;
-                            setState(() {});
-                          }
-                        },
-                      ),
-                    ],
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.green[700],
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
             ),
-            // Quantity Controls
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  icon: Icon(Icons.remove_circle_outline),
-                  onPressed: quantity > 0
-                      ? () {
-                          onQuantityChanged(quantity - 1);
-                          setState(() {});
-                        }
-                      : null,
-                ),
-                Text(
-                  '$quantity',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                IconButton(
-                  icon: Icon(Icons.add_circle_outline),
-                  onPressed: () {
-                    onQuantityChanged(quantity + 1);
-                    setState(() {});
-                  },
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildComboSection() {
-    final currentFlavors = selectedComboType == 'small' ? smallComboFlavors : standardComboFlavors;
-    final currentCombo = comboItems[selectedComboType] ?? {};
-
-    return Card(
-      margin: EdgeInsets.symmetric(vertical: 8),
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Combo Pack',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 12),
-            // Combo Type Selection
-            Row(
-              children: [
-                Expanded(
-                  child: ChoiceChip(
-                    label: Text('Small Combo (2 flavors)'),
-                    selected: selectedComboType == 'small',
-                    labelStyle: TextStyle(
-                      color: selectedComboType == 'small' ? Colors.white : Colors.black87,
-                    ),
-                    selectedColor: Colors.green,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          selectedComboType = 'small';
-                        });
-                      }
-                    },
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: ChoiceChip(
-                    label: Text('Standard Combo (3 flavors)'),
-                    selected: selectedComboType == 'standard',
-                    labelStyle: TextStyle(
-                      color: selectedComboType == 'standard' ? Colors.white : Colors.black87,
-                    ),
-                    selectedColor: Colors.blue,
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() {
-                          selectedComboType = 'standard';
-                        });
-                      }
-                    },
-                  ),
-                ),
-              ],
-            ),
-            SizedBox(height: 8),
-            // Combo Warning
-            Builder(
-              builder: (context) {
-                final currentCount = _getComboTotalCount(selectedComboType);
-                final limit = selectedComboType == 'small' ? 6 : 3;
-                if (currentCount > limit) {
-                  return Container(
-                    padding: EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.orange[50],
-                      border: Border.all(color: Colors.orange),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.warning, color: Colors.orange[900], size: 20),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '${selectedComboType == 'small' ? 'Small' : 'Standard'} combo limit is $limit pcs. Currently: $currentCount',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.orange[900],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                }
-                return SizedBox.shrink();
-              },
-            ),
-            SizedBox(height: 16),
-            // Flavor Selection
-            Text(
-              'Select Flavors (can choose same flavor, no limit):',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-            SizedBox(height: 12),
-            ...currentFlavors.map((flavor) {
-              // Get price and image for this flavor (try to find normal variant)
-              double flavorPrice = 0.0;
-              String? flavorImageUrl;
-              try {
-                final flavorProduct = allProducts.firstWhere(
-                  (p) => p.name.toLowerCase() == flavor.toLowerCase(),
-                );
-                flavorPrice = flavorProduct.price;
-                flavorImageUrl = flavorProduct.imageUrl;
-              } catch (e) {
-                // Use default price if not found
-                flavorPrice = 3.50;
-              }
-
-              return Card(
-                margin: EdgeInsets.symmetric(vertical: 4),
-                child: Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Row(
-                    children: [
-                      // Product Image
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: flavorImageUrl != null && !flavorImageUrl!.startsWith('assets/')
-                            ? Image.file(
-                                File(flavorImageUrl!),
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    width: 80,
-                                    height: 80,
-                                    color: Colors.grey[300],
-                                    child: Icon(Icons.image_not_supported, size: 30),
-                                  );
-                                },
-                              )
-                            : Image.asset(
-                                flavorImageUrl ?? productImages[flavor.toLowerCase()] ?? 'assets/images/placeholder.jpg',
-                                width: 80,
-                                height: 80,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Container(
-                                    width: 80,
-                                    height: 80,
-                                    color: Colors.grey[300],
-                                    child: Icon(Icons.image_not_supported, size: 30),
-                                  );
-                                },
-                              ),
+            // Quantity Controls - Compact design
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: () {
+                        onQuantityChanged(quantity + 1);
+                        setState(() {});
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(Icons.add, size: 20, color: Colors.green[700]),
                       ),
-                      SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              flavor,
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            SizedBox(height: 4),
-                            Text(
-                              PriceCalculator.formatPrice(flavorPrice),
-                              style: TextStyle(fontSize: 14, color: Colors.orange[900], fontWeight: FontWeight.w600),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                    ),
+                  ),
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    child: Text(
+                      '$quantity',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey[800],
+                      ),
+                    ),
+                  ),
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      onTap: quantity > 0
+                          ? () {
+                              onQuantityChanged(quantity - 1);
+                              setState(() {});
+                            }
+                          : null,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: EdgeInsets.all(8),
+                        child: Icon(
+                          Icons.remove,
+                          size: 20,
+                          color: quantity > 0 ? Colors.red[700] : Colors.grey[400],
                         ),
                       ),
-                      // Quantity Controls
-                      Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(Icons.remove_circle_outline),
-                        onPressed: (currentCombo[flavor] ?? 0) > 0
-                            ? () {
-                                setState(() {
-                                  comboItems[selectedComboType]![flavor] =
-                                      (comboItems[selectedComboType]![flavor] ?? 0) - 1;
-                                });
-                              }
-                            : null,
-                      ),
-                      Text(
-                        '${currentCombo[flavor] ?? 0}',
-                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                          IconButton(
-                            icon: Icon(Icons.add_circle_outline),
-                            onPressed: () {
-                              final currentCount = _getComboTotalCount(selectedComboType);
-                              final limit = selectedComboType == 'small' ? 6 : 3;
-                              if (currentCount >= limit) {
-                                Fluttertoast.showToast(
-                                  msg: selectedComboType == 'small'
-                                      ? "Small combo limit is 6 pcs. Reduce another flavor before adding more."
-                                      : "Standard combo limit is 3 pcs. Reduce another flavor before adding more.",
-                                  toastLength: Toast.LENGTH_LONG,
-                                );
-                                return;
-                              }
-                              setState(() {
-                                comboItems[selectedComboType]![flavor] =
-                                    (comboItems[selectedComboType]![flavor] ?? 0) + 1;
-                              });
-                            },
-                          ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
-                ),
-              );
-            }),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -1434,13 +1319,19 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   @override
   Widget build(BuildContext context) {
     final orderPrice = _calculateTotal();
-    final codFeeForDisplay =
-        paymentMethod == 'cod' ? (double.tryParse(_codAmountController.text.trim()) ?? 0.0) : 0.0;
+    final codFeeForDisplay = paymentMethod == 'cod' 
+        ? (double.tryParse(_codAmountController.text.trim()) ?? 0.0) 
+        : 0.0;
     final totalPrice = orderPrice + codFeeForDisplay;
     final totalPcs = _calculateTotalPcs();
+    final theme = Theme.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.existingOrder != null ? "Edit Order" : "Add Customer Order")),
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: Text(widget.existingOrder != null ? "Edit Order" : "New Order"),
+        elevation: 0,
+      ),
       body: Form(
         key: _formKey,
         child: Column(
@@ -1451,74 +1342,104 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // Customer Section Header
+                    _buildSectionHeader(
+                      icon: Icons.person_rounded,
+                      title: "Customer Details",
+                      color: Colors.blue,
+                    ),
+                    SizedBox(height: 12),
+                    
                     // Customer Selection
                     StreamBuilder<List<Customer>>(
                       stream: _fs.getAllCustomers(),
                       builder: (context, snapshot) {
                         List<Customer> customers = snapshot.data ?? [];
                         
-                        // Only use selected customer ID if it exists in the current list
                         String? validCustomerId = _selectedCustomerId;
                         if (validCustomerId != null && !customers.any((c) => c.id == validCustomerId)) {
                           validCustomerId = null;
                         }
                         
-                        return Row(
-                          children: [
-                            Expanded(
-                              child: DropdownButtonFormField<String?>(
-                                value: validCustomerId,
-                                decoration: InputDecoration(
-                                  labelText: "Select Customer (optional)",
-                                  prefixIcon: Icon(Icons.people),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                items: [
-                                  DropdownMenuItem<String?>(
-                                    value: null,
-                                    child: Text("-- Select Customer --"),
-                                  ),
-                                  ...customers.map((customer) => DropdownMenuItem<String?>(
-                                    value: customer.id,
-                                    child: Text(customer.name),
-                                  )),
-                                ],
-                                onChanged: (String? customerId) {
-                                  setState(() {
-                                    _selectedCustomerId = customerId;
-                                    if (customerId != null) {
-                                      final customer = customers.firstWhere((c) => c.id == customerId);
-                                      _nameController.text = customer.name;
-                                      _phoneController.text = customer.contactNo;
-                                      _codAddressController.text = customer.address;
-                                    } else {
-                                      _nameController.clear();
-                                      _phoneController.clear();
-                                      _codAddressController.clear();
-                                    }
-                                  });
-                                },
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.05),
+                                blurRadius: 5,
+                                offset: Offset(0, 2),
                               ),
-                            ),
-                            SizedBox(width: 8),
-                            IconButton(
-                              icon: Icon(Icons.add_circle),
-                              color: Theme.of(context).primaryColor,
-                              tooltip: 'Add New Customer',
-                              onPressed: () => _showAddCustomerDialog(context, customers),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: DropdownButtonFormField<String?>(
+                                  value: validCustomerId,
+                                  decoration: InputDecoration(
+                                    labelText: "Select Customer",
+                                    prefixIcon: Icon(Icons.people_rounded, color: Colors.blue),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                      borderSide: BorderSide.none,
+                                    ),
+                                    filled: true,
+                                    fillColor: Colors.white,
+                                    contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                  ),
+                                  items: [
+                                    DropdownMenuItem<String?>(
+                                      value: null,
+                                      child: Text("-- Select or add new --"),
+                                    ),
+                                    ...customers.map((customer) => DropdownMenuItem<String?>(
+                                      value: customer.id,
+                                      child: Text(customer.name),
+                                    )),
+                                  ],
+                                  onChanged: (String? customerId) {
+                                    setState(() {
+                                      _selectedCustomerId = customerId;
+                                      if (customerId != null) {
+                                        final customer = customers.firstWhere((c) => c.id == customerId);
+                                        _nameController.text = customer.name;
+                                        _phoneController.text = customer.contactNo;
+                                        _codAddressController.text = customer.address;
+                                      } else {
+                                        _nameController.clear();
+                                        _phoneController.clear();
+                                        _codAddressController.clear();
+                                      }
+                                    });
+                                  },
+                                ),
+                              ),
+                              Container(
+                                margin: EdgeInsets.only(right: 8, left: 4),
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: IconButton(
+                                  icon: Icon(Icons.add_rounded, color: Colors.white),
+                                  tooltip: 'Add New Customer',
+                                  onPressed: () => _showAddCustomerDialog(context, customers),
+                                ),
+                              ),
+                            ],
+                          ),
                         );
                       },
                     ),
                     SizedBox(height: 16),
-                    // Customer Info
+                    
+                    // Customer Info Fields
                     CustomTextField(
                       controller: _nameController,
                       label: "Customer Name",
-                      prefixIcon: Icons.person,
+                      prefixIcon: Icons.person_rounded,
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter customer name';
@@ -1526,311 +1447,758 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                         return null;
                       },
                     ),
-                    SizedBox(height: 16),
+                    SizedBox(height: 12),
                     CustomTextField(
                       controller: _phoneController,
                       label: "Phone Number",
-                      prefixIcon: Icons.phone,
+                      prefixIcon: Icons.phone_rounded,
                       keyboardType: TextInputType.phone,
                     ),
-                    SizedBox(height: 16),
-                    // Pickup DateTime
-                    InkWell(
-                      onTap: () => _selectPickupDateTime(context),
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: "Pickup Date & Time",
-                          prefixIcon: Icon(Icons.calendar_today),
-                          border: OutlineInputBorder(
+                    SizedBox(height: 24),
+                    
+                    // Order Details Header
+                    _buildSectionHeader(
+                      icon: Icons.event_note_rounded,
+                      title: "Order Details",
+                      color: Colors.orange,
+                    ),
+                    SizedBox(height: 12),
+                    
+                    // Date/Time pickers in a card
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 5,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        children: [
+                          // Order Date & Time
+                          InkWell(
+                            onTap: () => _selectOrderDate(context),
                             borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.event_rounded, color: Colors.orange[700]),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Order Date & Time",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          orderDate != null
+                                              ? DateFormat('dd MMM yyyy, hh:mm a').format(orderDate!)
+                                              : 'Tap to select',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: orderDate != null ? Colors.black87 : Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right, color: Colors.grey[400]),
+                                ],
+                              ),
+                            ),
                           ),
-                          errorText: pickupDateTime == null ? 'Required' : null,
-                        ),
-                        child: Text(
-                          pickupDateTime != null
-                              ? DateFormat('yyyy-MM-dd HH:mm').format(pickupDateTime!)
-                              : 'Select pickup date and time',
-                          style: TextStyle(
-                            color: pickupDateTime != null ? Colors.black87 : Colors.grey[600],
+                          SizedBox(height: 12),
+                          // Pickup DateTime
+                          InkWell(
+                            onTap: () => _selectPickupDateTime(context),
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(
+                                  color: pickupDateTime == null ? Colors.red[300]! : Colors.grey[300]!,
+                                  width: pickupDateTime == null ? 2 : 1,
+                                ),
+                                borderRadius: BorderRadius.circular(8),
+                                color: pickupDateTime == null ? Colors.red[50] : null,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.calendar_today_rounded,
+                                    color: pickupDateTime == null ? Colors.red[700] : Colors.green[700],
+                                  ),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(
+                                              "Pickup Date & Time",
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                            if (pickupDateTime == null) ...[
+                                              SizedBox(width: 4),
+                                              Text(
+                                                "*Required",
+                                                style: TextStyle(
+                                                  fontSize: 11,
+                                                  color: Colors.red[700],
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          pickupDateTime != null
+                                              ? DateFormat('dd MMM yyyy, hh:mm a').format(pickupDateTime!)
+                                              : 'Tap to select pickup time',
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: pickupDateTime != null ? Colors.black87 : Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right, color: Colors.grey[400]),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ),
-                    SizedBox(height: 16),
-                    // Payment Method
-                    Row(
-                      children: [
-                        Expanded(
-                          child: ChoiceChip(
-                            label: Text('COD'),
-                            selected: paymentMethod == 'cod',
-                            labelStyle: TextStyle(
-                              color: paymentMethod == 'cod' ? Colors.white : Colors.black87,
-                            ),
-                            selectedColor: Colors.blue,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() {
-                                  paymentMethod = 'cod';
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: ChoiceChip(
-                            label: Text('Pickup'),
-                            selected: paymentMethod == 'pickup',
-                            labelStyle: TextStyle(
-                              color: paymentMethod == 'pickup' ? Colors.white : Colors.black87,
-                            ),
-                            selectedColor: Colors.green,
-                            onSelected: (selected) {
-                              if (selected) {
-                                setState(() {
-                                  paymentMethod = 'pickup';
-                                });
-                              }
-                            },
-                          ),
-                        ),
-                      ],
+                    SizedBox(height: 24),
+                    
+                    // Payment Section
+                    _buildSectionHeader(
+                      icon: Icons.payment_rounded,
+                      title: "Payment Details",
+                      color: Colors.green,
                     ),
-                    SizedBox(height: 16),
-                    // Payment Status + Channel
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: isPaid,
-                          onChanged: (value) {
-                            setState(() {
-                              isPaid = value ?? false;
-                            });
-                          },
-                        ),
-                        Text('Payment Received'),
-                        SizedBox(width: 12),
-                        ChoiceChip(
-                          label: Text('Cash'),
-                          selected: paymentChannel == 'cash',
-                          labelStyle: TextStyle(
-                            color: paymentChannel == 'cash' ? Colors.white : Colors.black87,
+                    SizedBox(height: 12),
+                    
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 5,
+                            offset: Offset(0, 2),
                           ),
-                          selectedColor: Colors.green,
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() {
-                                paymentChannel = 'cash';
-                              });
-                            }
-                          },
-                        ),
-                        SizedBox(width: 8),
-                        ChoiceChip(
-                          label: Text('QR'),
-                          selected: paymentChannel == 'qr',
-                          labelStyle: TextStyle(
-                            color: paymentChannel == 'qr' ? Colors.white : Colors.black87,
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "Payment Method",
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
                           ),
-                          selectedColor: Colors.blue,
-                          onSelected: (selected) {
-                            if (selected) {
-                              setState(() {
-                                paymentChannel = 'qr';
-                              });
-                            }
-                          },
-                        ),
-                      ],
+                          SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildPaymentMethodChip(
+                                  label: 'COD',
+                                  icon: Icons.delivery_dining_rounded,
+                                  selected: paymentMethod == 'cod',
+                                  onTap: () => setState(() => paymentMethod = 'cod'),
+                                  color: Colors.blue,
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: _buildPaymentMethodChip(
+                                  label: 'Pickup',
+                                  icon: Icons.store_rounded,
+                                  selected: paymentMethod == 'pickup',
+                                  onTap: () => setState(() => paymentMethod = 'pickup'),
+                                  color: Colors.green,
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 16),
+                          // Payment Status Row
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Checkbox(
+                                      value: isPaid,
+                                      onChanged: (value) => setState(() => isPaid = value ?? false),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                    ),
+                                    Text(
+                                      'Payment Received',
+                                      style: TextStyle(fontWeight: FontWeight.w500),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            "Payment Channel",
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[700],
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _buildPaymentChannelChip(
+                                  label: 'Cash',
+                                  icon: Icons.money_rounded,
+                                  selected: paymentChannel == 'cash',
+                                  onTap: () => setState(() => paymentChannel = 'cash'),
+                                ),
+                              ),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: _buildPaymentChannelChip(
+                                  label: 'QR Code',
+                                  icon: Icons.qr_code_rounded,
+                                  selected: paymentChannel == 'qr',
+                                  onTap: () => setState(() => paymentChannel = 'qr'),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                    SizedBox(height: 16),
+                    
                     // COD Details
                     if (paymentMethod == 'cod') ...[
-                      CustomTextField(
-                        controller: _codAmountController,
-                        label: "COD Amount (RM)",
-                        prefixIcon: Icons.delivery_dining,
-                        keyboardType: TextInputType.numberWithOptions(decimal: true),
-                      ),
-                      SizedBox(height: 12),
-                      CustomTextField(
-                        controller: _codAddressController,
-                        label: "COD Address",
-                        prefixIcon: Icons.location_on,
-                        maxLines: 2,
-                      ),
-                      SizedBox(height: 24),
-                    ] else
-                      SizedBox(height: 24),
-                    // Variant Filter
-                    Row(
-                      children: [
-                        Text(
-                          "Filter by variant:",
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                      SizedBox(height: 16),
+                      Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.blue[50],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.blue[200]!),
                         ),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: DropdownButton<String>(
-                            value: selectedVariantFilter,
-                            isExpanded: true,
-                            items: const [
-                              DropdownMenuItem(value: 'all', child: Text('All')),
-                              DropdownMenuItem(value: 'small', child: Text('Small')),
-                              DropdownMenuItem(value: 'normal', child: Text('Standard')),
-                            ],
-                            onChanged: (value) {
-                              setState(() {
-                                selectedVariantFilter = value ?? 'all';
-                              });
-                            },
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(Icons.delivery_dining_rounded, color: Colors.blue[700], size: 20),
+                                SizedBox(width: 8),
+                                Text(
+                                  "COD Details",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.blue[900],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            SizedBox(height: 12),
+                            CustomTextField(
+                              controller: _codAmountController,
+                              label: "Delivery Fee (RM)",
+                              prefixIcon: Icons.attach_money_rounded,
+                              keyboardType: TextInputType.numberWithOptions(decimal: true),
+                            ),
+                            SizedBox(height: 12),
+                            CustomTextField(
+                              controller: _codAddressController,
+                              label: "Delivery Address",
+                              prefixIcon: Icons.location_on_rounded,
+                              maxLines: 3,
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    SizedBox(height: 12),
-                    // Single Items Section
-                    Text(
-                      "Menu Items",
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 12),
-                    // Show filtered products
-                    ...allProducts
-                        .where((p) {
-                          if (p.variant == 'combo') return false;
-                          if (selectedVariantFilter == 'small') {
-                            return p.variant == 'small';
-                          } else if (selectedVariantFilter == 'normal') {
-                            return p.variant == 'normal';
-                          } else {
-                            return true; // 'all'
-                          }
-                        })
-                        .map((product) {
-                          final productName = product.name;
-                          if (!singleItems.containsKey(productName)) {
-                            singleItems[productName] = {'normal': 0, 'small': 0};
-                          }
-                          // Show the variant that has quantity > 0, or default to product's variant
-                          final currentVariant = singleItems[productName]!['normal']! > 0
-                              ? 'normal'
-                              : (singleItems[productName]!['small']! > 0 ? 'small' : product.variant);
-                          final currentQuantity = singleItems[productName]![currentVariant] ?? 0;
-                          
-                          return _buildProductCard(
-                            productName,
-                            currentVariant,
-                            currentQuantity,
-                            (newQuantity) {
-                              singleItems[productName]![currentVariant] = newQuantity;
-                            },
-                          );
-                        })
-                        .toList(),
+                      ),
+                    ],
+                    
                     SizedBox(height: 24),
+                    
+                    // Products Section
+                    _buildSectionHeader(
+                      icon: Icons.shopping_basket_rounded,
+                      title: "Select Products",
+                      color: Colors.purple,
+                    ),
+                    SizedBox(height: 12),
+                    
+                    // Filters in a compact card
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 5,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Series",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                DropdownButton<String>(
+                                  value: selectedSeriesFilter,
+                                  isExpanded: true,
+                                  underline: SizedBox(),
+                                  items: const [
+                                    DropdownMenuItem(value: 'all', child: Text('All')),
+                                    DropdownMenuItem(value: 'Tiramisu', child: Text('Tiramisu')),
+                                    DropdownMenuItem(value: 'Cheesekut', child: Text('Cheesekut')),
+                                  ],
+                                  onChanged: (value) {
+                                    setState(() {
+                                      selectedSeriesFilter = value ?? 'all';
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Size",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                DropdownButton<String>(
+                                  value: selectedSizeFilter,
+                                  isExpanded: true,
+                                  underline: SizedBox(),
+                                  items: const [
+                                    DropdownMenuItem(value: 'all', child: Text('All')),
+                                    DropdownMenuItem(value: 'small', child: Text('Small')),
+                                    DropdownMenuItem(value: 'big', child: Text('Big')),
+                                  ],
+                                  onChanged: (value) {
+                                    setState(() {
+                                      selectedSizeFilter = value ?? 'all';
+                                    });
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(height: 16),
+                    
+                    // Product List - Filter and display products
+                    ...() {
+                      // Map to track unique products by name+variant+size
+                      Map<String, Product> uniqueProducts = {};
+                      
+                      for (var product in allProducts) {
+                        // Skip combo products
+                        if (product.variant == 'combo') continue;
+                        
+                        // Filter by series
+                        if (selectedSeriesFilter != 'all' && product.variant != selectedSeriesFilter) {
+                          continue;
+                        }
+                        
+                        // Determine product size using consistent helper function
+                        final productSize = _getProductSize(product);
+                        
+                        // Apply size filter - must match exactly
+                        if (selectedSizeFilter != 'all') {
+                          final filterSize = selectedSizeFilter.toLowerCase().trim();
+                          if (productSize != filterSize) {
+                            continue; // Skip products that don't match the size filter
+                          }
+                        }
+                        
+                        // Create unique key: name+variant+size+price
+                        // Include price to ensure products with same name+variant+size but different prices are shown separately
+                        // This prevents losing products due to incorrect deduplication
+                        final uniqueKey = '${product.name.toLowerCase().trim()}_${product.variant.toLowerCase().trim()}_${productSize}_${product.price.toStringAsFixed(2)}';
+                        
+                        // Only keep one product per unique combination
+                        // Prefer products with size field set over inferred ones
+                        if (!uniqueProducts.containsKey(uniqueKey)) {
+                          uniqueProducts[uniqueKey] = product;
+                        } else {
+                          final existingProduct = uniqueProducts[uniqueKey]!;
+                          // Replace if current has size field and existing doesn't
+                          if (product.size != null && product.size!.isNotEmpty && 
+                              (existingProduct.size == null || existingProduct.size!.isEmpty)) {
+                            uniqueProducts[uniqueKey] = product;
+                          }
+                          // If both have size fields or both don't, keep the existing one
+                          // (This prevents duplicates while preserving products)
+                        }
+                      }
+                      
+                      // Sort products: first by name, then by size (small before big)
+                      final sortedProducts = uniqueProducts.values.toList()
+                        ..sort((a, b) {
+                          // First sort by name
+                          final nameCompare = a.name.compareTo(b.name);
+                          if (nameCompare != 0) return nameCompare;
+                          
+                          // Then sort by size (small before big)
+                          final sizeA = _getProductSize(a);
+                          final sizeB = _getProductSize(b);
+                          
+                          if (sizeA == 'small' && sizeB == 'big') return -1;
+                          if (sizeA == 'big' && sizeB == 'small') return 1;
+                          return 0;
+                        });
+                      
+                      return sortedProducts.map((product) {
+                        final productName = product.name;
+                        if (!singleItems.containsKey(productName)) {
+                          singleItems[productName] = {};
+                        }
+                        final currentVariant = product.variant;
+                        final productSize = _getProductSize(product);
+                        // Use composite key: variant|size to separate small and big
+                        final variantKey = '$currentVariant|$productSize';
+                        if (!singleItems[productName]!.containsKey(variantKey)) {
+                          singleItems[productName]![variantKey] = 0;
+                        }
+                        final currentQuantity = singleItems[productName]![variantKey] ?? 0;
+                        
+                        // Pass the actual product object to ensure correct matching
+                        return _buildProductCardFromProduct(
+                          product,
+                          currentQuantity,
+                          (newQuantity) {
+                            singleItems[productName]![variantKey] = newQuantity;
+                          },
+                        );
+                      }).toList();
+                    }(),
+                    SizedBox(height: 80),
                   ],
                 ),
               ),
             ),
-            // Summary and Save Button
+            // Enhanced Summary Bar
             Container(
-              padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 4,
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
                     offset: Offset(0, -2),
                   ),
                 ],
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        "Total Pieces:",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        "$totalPcs pcs",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8),
-                  SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Order Price:",
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                      Text(
-                        PriceCalculator.formatPrice(orderPrice),
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange[900],
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (paymentMethod == 'cod') ...[
-                    SizedBox(height: 4),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "COD Fee:",
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          PriceCalculator.formatPrice(codFeeForDisplay),
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.red[700],
+                      // Summary Row
+                      Container(
+                        padding: EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.orange[50]!, Colors.orange[100]!],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                      ],
-                    ),
-                  ],
-                  SizedBox(height: 8),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Total Price:",
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                        child: Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.shopping_bag_rounded, size: 20, color: Colors.orange[800]),
+                                    SizedBox(width: 8),
+                                    Text(
+                                      "Total Items:",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.grey[700],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  "$totalPcs pcs",
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange[900],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Divider(height: 20),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  "Order Total:",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[700],
+                                  ),
+                                ),
+                                Text(
+                                  PriceCalculator.formatPrice(orderPrice),
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey[800],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            if (paymentMethod == 'cod' && codFeeForDisplay > 0) ...[
+                              SizedBox(height: 4),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    "Delivery Fee:",
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[700],
+                                    ),
+                                  ),
+                                  Text(
+                                    PriceCalculator.formatPrice(codFeeForDisplay),
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.grey[800],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      Text(
-                        PriceCalculator.formatPrice(totalPrice),
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
+                      SizedBox(height: 16),
+                      // Action Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () => Navigator.pop(context),
+                              icon: Icon(Icons.cancel_outlined),
+                              label: Text("Cancel"),
+                              style: OutlinedButton.styleFrom(
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                          SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: ElevatedButton.icon(
+                              onPressed: _saveOrder,
+                              icon: Icon(Icons.check_circle_outline),
+                              label: Text(widget.existingOrder != null ? "Update Order" : "Create Order"),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Theme.of(context).colorScheme.primary,
+                                foregroundColor: Colors.white,
+                                padding: EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                  SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _saveOrder,
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: Text("Save Order"),
-                    ),
-                  ),
-                ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        SizedBox(width: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[800],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPaymentMethodChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: selected ? color.withOpacity(0.1) : Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? color : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: selected ? color : Colors.grey[600],
+              size: 20,
+            ),
+            SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? color : Colors.grey[700],
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPaymentChannelChip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: selected ? Colors.green.withOpacity(0.1) : Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? Colors.green : Colors.transparent,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              icon,
+              color: selected ? Colors.green : Colors.grey[600],
+              size: 20,
+            ),
+            SizedBox(width: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? Colors.green : Colors.grey[700],
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 14,
               ),
             ),
           ],

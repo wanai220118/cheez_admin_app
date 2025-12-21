@@ -154,15 +154,15 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                     Container(
                       padding: EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.blueGrey[50],
+                        color: _getSeriesColor(product.variant),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Text(
-                        product.variant.toUpperCase(),
+                        product.variant, // Display series name (Tiramisu or Cheesekut)
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Colors.blueGrey[800],
+                          color: _getSeriesTextColor(product.variant),
                         ),
                       ),
                     ),
@@ -202,6 +202,28 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
         );
       },
     );
+  }
+
+  Color _getSeriesColor(String variant) {
+    // Check if variant stores series (Tiramisu or Cheesekut)
+    if (variant == 'Tiramisu') {
+      return Color(0xFF783D2E); // Brown color
+    } else if (variant == 'Cheesekut') {
+      return Color(0xFFF5E6D3); // Cream color
+    }
+    // Fallback for old variant values
+    return Colors.blueGrey[50]!;
+  }
+
+  Color _getSeriesTextColor(String variant) {
+    // Text color should contrast with background
+    if (variant == 'Tiramisu') {
+      return Colors.white; // White text on brown background
+    } else if (variant == 'Cheesekut') {
+      return Color(0xFF783D2E); // Brown text on cream background
+    }
+    // Fallback
+    return Colors.blueGrey[800]!;
   }
 }
 

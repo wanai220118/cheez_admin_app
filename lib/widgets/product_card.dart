@@ -9,6 +9,7 @@ class ProductCard extends StatelessWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
   final VoidCallback? onTap;
+  final VoidCallback? onToggleStatus;
 
   const ProductCard({
     Key? key,
@@ -16,6 +17,7 @@ class ProductCard extends StatelessWidget {
     this.onEdit,
     this.onDelete,
     this.onTap,
+    this.onToggleStatus,
   }) : super(key: key);
 
   @override
@@ -100,17 +102,35 @@ class ProductCard extends StatelessWidget {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              product.variant.toUpperCase(),
+                              product.variant, // Display series name (Tiramisu or Cheesekut)
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.white,
+                                color: _getSeriesTextColor(product.variant),
                               ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
                         ),
+                        if (!product.isActive) ...[
+                          SizedBox(width: 8),
+                          Container(
+                            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              'INACTIVE',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
@@ -144,7 +164,7 @@ class ProductCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (onEdit != null || onDelete != null) ...[
+              if (onEdit != null || onDelete != null || onToggleStatus != null) ...[
                 SizedBox(width: 8),
                 PopupMenuButton(
                   itemBuilder: (context) => [
@@ -159,6 +179,24 @@ class ProductCard extends StatelessWidget {
                             ),
                             SizedBox(width: 8),
                             Text('Edit'),
+                          ],
+                        ),
+                      ),
+                    if (onToggleStatus != null)
+                      PopupMenuItem(
+                        value: 'toggle',
+                        child: Row(
+                          children: [
+                            Icon(
+                              product.isActive ? Icons.block : Icons.check_circle,
+                              size: 20,
+                              color: product.isActive ? Colors.orange : Colors.green,
+                            ),
+                            SizedBox(width: 8),
+                            Text(
+                              product.isActive ? 'Deactivate' : 'Activate',
+                              style: TextStyle(color: product.isActive ? Colors.orange : Colors.green),
+                            ),
                           ],
                         ),
                       ),
@@ -181,6 +219,8 @@ class ProductCard extends StatelessWidget {
                   onSelected: (value) {
                     if (value == 'edit' && onEdit != null) {
                       onEdit!();
+                    } else if (value == 'toggle' && onToggleStatus != null) {
+                      onToggleStatus!();
                     } else if (value == 'delete' && onDelete != null) {
                       onDelete!();
                     }
@@ -195,6 +235,13 @@ class ProductCard extends StatelessWidget {
   }
 
   Color _getVariantColor(String variant) {
+    // Check if variant stores series (Tiramisu or Cheesekut)
+    if (variant == 'Tiramisu') {
+      return Color(0xFF783D2E); // Brown color
+    } else if (variant == 'Cheesekut') {
+      return Color(0xFFF5E6D3); // Cream color
+    }
+    // Fallback for old variant values
     switch (variant) {
       case 'normal':
         return Colors.blue;
@@ -206,6 +253,17 @@ class ProductCard extends StatelessWidget {
       default:
         return Colors.grey;
     }
+  }
+
+  Color _getSeriesTextColor(String variant) {
+    // Text color should contrast with background
+    if (variant == 'Tiramisu') {
+      return Colors.white; // White text on brown background
+    } else if (variant == 'Cheesekut') {
+      return Color(0xFF783D2E); // Brown text on cream background
+    }
+    // Fallback
+    return Colors.white;
   }
 }
 

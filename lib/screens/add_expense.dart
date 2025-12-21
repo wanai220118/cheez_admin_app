@@ -20,21 +20,22 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _formKey = GlobalKey<FormState>();
   final FirestoreService _fs = FirestoreService();
   
-  // Category and subcategory
   String _category = 'expense';
   String? _subcategory;
-  
-  // Date
   DateTime _expenseDate = DateTime.now();
-  
-  // Overall supplier
   final _supplierController = TextEditingController();
   String? _selectedSupplier;
+  final List<String> _commonSuppliers = [
+    'Sabasun',
+    'ECO',
+    'Mydin',
+    'Shopee',
+    'Kedai Plastik Buluh Gading',
+    'TikTok',
+  ];
   
-  // Expense items
   List<ExpenseItemData> _items = [ExpenseItemData()];
   
-  // Subcategories mapping
   final Map<String, List<String>> _subcategories = {
     'packaging': ['bekas 2oz', 'bekas 4oz', 'sudu', 'plastic s size', 'plastic l size', 'sticker'],
     'ingredients': [
@@ -60,8 +61,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   void initState() {
     super.initState();
-
-    // If editing an existing expense, prefill fields
     final existing = widget.existingExpense;
     if (existing != null) {
       _category = existing.category;
@@ -70,7 +69,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       _supplierController.text = existing.supplier ?? '';
       _selectedSupplier = existing.supplier;
 
-      // Build items list from existing items
       _items = existing.items.map((expenseItem) {
         final data = ExpenseItemData();
         data.itemNameController.text = expenseItem.itemName;
@@ -101,11 +99,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       initialDate: _expenseDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null && picked != _expenseDate) {
       setState(() {
         _expenseDate = picked;
-        _subcategory = null; // Reset subcategory when date changes
+        _subcategory = null;
       });
     }
   }
@@ -122,6 +130,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         _items[index].dispose();
         _items.removeAt(index);
       });
+    } else {
+      Fluttertoast.showToast(msg: "At least one item is required");
     }
   }
 
@@ -146,7 +156,6 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       return;
     }
 
-    // Validate items
     bool hasValidItems = false;
     List<ExpenseItem> expenseItems = [];
     
@@ -204,136 +213,232 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   @override
   Widget build(BuildContext context) {
     final overallTotal = _calculateOverallTotal();
+    final theme = Theme.of(context);
     
     return Scaffold(
-      appBar: AppBar(title: Text("Add Expense")),
+      backgroundColor: Colors.grey[50],
+      appBar: AppBar(
+        title: Text(widget.isEdit ? "Edit Expense" : "Add Expense"),
+        elevation: 0,
+      ),
       body: Form(
         key: _formKey,
         child: Column(
           children: [
             Expanded(
               child: SingleChildScrollView(
-                padding: EdgeInsets.all(20),
+                padding: EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Date Picker
-                    InkWell(
-                      onTap: () => _selectDate(context),
-                      child: InputDecorator(
-                        decoration: InputDecoration(
-                          labelText: "Date",
-                          prefixIcon: Icon(Icons.calendar_today),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
+                    // Header Section
+                    _buildSectionHeader(
+                      icon: Icons.info_rounded,
+                      title: "Expense Details",
+                      color: Colors.blue,
+                    ),
+                    SizedBox(height: 12),
+                    
+                    // Date, Category, Subcategory, Supplier in Card
+                    Container(
+                      padding: EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 5,
+                            offset: Offset(0, 2),
                           ),
-                        ),
-                        child: Text(
-                          DateFormat('yyyy-MM-dd').format(_expenseDate),
-                          style: TextStyle(fontSize: 16),
-                        ),
+                        ],
                       ),
-                    ),
-                    SizedBox(height: 16),
-                    
-                    // Category
-                    DropdownButtonFormField<String>(
-                      value: _category,
-                      decoration: InputDecoration(
-                        labelText: "Category",
-                        prefixIcon: Icon(Icons.category),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      items: ['packaging', 'ingredients', 'utilities', 'commission', 'expense', 'gas', 'storage', 'etc']
-                          .map((cat) => DropdownMenuItem(
-                                value: cat,
-                                child: Text(cat.toUpperCase()),
-                              ))
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _category = value!;
-                          _subcategory = null; // Reset subcategory when category changes
-                          // Reset all item names when category changes
-                          for (var item in _items) {
-                            item.itemNameController.clear();
-                          }
-                        });
-                      },
-                    ),
-                    SizedBox(height: 16),
-                    
-                    // Subcategory (if available)
-                    if (_subcategories[_category] != null && _subcategories[_category]!.isNotEmpty)
-                      DropdownButtonFormField<String>(
-                        value: _subcategory,
-                        decoration: InputDecoration(
-                          labelText: "Subcategory (optional)",
-                          prefixIcon: Icon(Icons.subdirectory_arrow_right),
-                          border: OutlineInputBorder(
+                      child: Column(
+                        children: [
+                          // Date Picker
+                          InkWell(
+                            onTap: () => _selectDate(context),
                             borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.calendar_today_rounded, color: Colors.blue[700]),
+                                  SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          "Expense Date",
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[600],
+                                          ),
+                                        ),
+                                        SizedBox(height: 2),
+                                        Text(
+                                          DateFormat('dd MMM yyyy').format(_expenseDate),
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Icon(Icons.chevron_right, color: Colors.grey[400]),
+                                ],
+                              ),
+                            ),
                           ),
-                        ),
-                        items: _subcategories[_category]!
-                            .map((sub) => DropdownMenuItem(
-                                  value: sub,
-                                  child: Text(sub),
-                                ))
-                            .toList(),
-                        onChanged: (value) {
-                          setState(() {
-                            _subcategory = value;
-                          });
-                        },
+                          SizedBox(height: 16),
+                          
+                          // Category
+                          DropdownButtonFormField<String>(
+                            value: _category,
+                            decoration: InputDecoration(
+                              labelText: "Category",
+                              prefixIcon: Icon(Icons.category_rounded),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              filled: true,
+                              fillColor: Colors.grey[50],
+                            ),
+                            items: ['packaging', 'ingredients', 'utilities', 'commission', 'expense', 'gas', 'storage', 'etc']
+                                .map((cat) => DropdownMenuItem(
+                                      value: cat,
+                                      child: Text(cat.toUpperCase()),
+                                    ))
+                                .toList(),
+                            onChanged: (value) {
+                              setState(() {
+                                _category = value!;
+                                _subcategory = null;
+                                for (var item in _items) {
+                                  item.itemNameController.clear();
+                                }
+                              });
+                            },
+                          ),
+                          
+                          // Subcategory (if available)
+                          if (_subcategories[_category] != null && _subcategories[_category]!.isNotEmpty) ...[
+                            SizedBox(height: 16),
+                            DropdownButtonFormField<String>(
+                              value: _subcategory,
+                              decoration: InputDecoration(
+                                labelText: "Subcategory (optional)",
+                                prefixIcon: Icon(Icons.subdirectory_arrow_right_rounded),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                filled: true,
+                                fillColor: Colors.grey[50],
+                              ),
+                              items: _subcategories[_category]!
+                                  .map((sub) => DropdownMenuItem(
+                                        value: sub,
+                                        child: Text(sub),
+                                      ))
+                                  .toList(),
+                              onChanged: (value) {
+                                setState(() {
+                                  _subcategory = value;
+                                });
+                              },
+                            ),
+                          ],
+                          SizedBox(height: 16),
+                          
+                          // Supplier
+                          Row(
+                            children: [
+                              Expanded(
+                                child: CustomTextField(
+                                  controller: _supplierController,
+                                  label: "Supplier (optional)",
+                                  prefixIcon: Icons.store_rounded,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedSupplier = value;
+                                    });
+                                  },
+                                ),
+                              ),
+                              SizedBox(width: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: theme.colorScheme.primary,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: PopupMenuButton<String>(
+                                  icon: Icon(Icons.arrow_drop_down_rounded, color: Colors.white),
+                                  tooltip: 'Select common supplier',
+                                  onSelected: (value) {
+                                    setState(() {
+                                      _selectedSupplier = value;
+                                      _supplierController.text = value;
+                                    });
+                                  },
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  itemBuilder: (context) => _commonSuppliers.map((supplier) {
+                                    return PopupMenuItem(
+                                      value: supplier,
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.store_rounded, size: 18, color: Colors.grey[600]),
+                                          SizedBox(width: 12),
+                                          Text(supplier),
+                                        ],
+                                      ),
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                    if (_subcategories[_category] != null && _subcategories[_category]!.isNotEmpty)
-                      SizedBox(height: 16),
-                    
-                    // Overall Supplier (dropdown)
-                    DropdownButtonFormField<String>(
-                      value: _selectedSupplier,
-                      decoration: InputDecoration(
-                        labelText: "Supplier (optional)",
-                        prefixIcon: Icon(Icons.store),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      items: const [
-                        'Sabasun',
-                        'ECO',
-                        'Mydin',
-                        'Shopee',
-                        'Kedai Plastik Buluh Gading',
-                      ].map((name) {
-                        return DropdownMenuItem(
-                          value: name,
-                          child: Text(name),
-                        );
-                      }).toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _selectedSupplier = value;
-                          _supplierController.text = value ?? '';
-                        });
-                      },
                     ),
+                    
                     SizedBox(height: 24),
                     
-                    // Items Section
+                    // Items Section Header
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          "Items",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        Row(
+                          children: [
+                            Icon(Icons.shopping_basket_rounded, color: Colors.orange[700], size: 24),
+                            SizedBox(width: 8),
+                            Text(
+                              "Items",
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[800],
+                              ),
+                            ),
+                          ],
                         ),
-                        IconButton(
-                          icon: Icon(Icons.add_circle),
-                          onPressed: _addItem,
-                          tooltip: 'Add Item',
+                        Container(
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primary,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: IconButton(
+                            icon: Icon(Icons.add_rounded, color: Colors.white),
+                            onPressed: _addItem,
+                            tooltip: 'Add Item',
+                          ),
                         ),
                       ],
                     ),
@@ -342,8 +447,20 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     // Items List
                     ...List.generate(_items.length, (index) {
                       final item = _items[index];
-                      return Card(
-                        margin: EdgeInsets.only(bottom: 16),
+                      return Container(
+                        margin: EdgeInsets.only(bottom: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.grey[200]!),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 5,
+                              offset: Offset(0, 2),
+                            ),
+                          ],
+                        ),
                         child: Padding(
                           padding: EdgeInsets.all(16),
                           child: Column(
@@ -352,43 +469,65 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    "Item ${index + 1}",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
+                                  Container(
+                                    padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange[50],
+                                      borderRadius: BorderRadius.circular(20),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.inventory_2_rounded, size: 16, color: Colors.orange[700]),
+                                        SizedBox(width: 6),
+                                        Text(
+                                          "Item ${index + 1}",
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.orange[900],
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                   if (_items.length > 1)
-                                    IconButton(
-                                      icon: Icon(Icons.delete, color: Colors.red),
-                                      onPressed: () => _removeItem(index),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.red[50],
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: IconButton(
+                                        icon: Icon(Icons.delete_rounded, color: Colors.red[700], size: 20),
+                                        onPressed: () => _removeItem(index),
+                                        tooltip: 'Remove item',
+                                      ),
                                     ),
                                 ],
                               ),
-                              SizedBox(height: 12),
-                              // Item Name - Show subcategories if available, otherwise text field
+                              SizedBox(height: 16),
+                              
+                              // Item Name - Dropdown or TextField
                               if (_subcategories[_category] != null && _subcategories[_category]!.isNotEmpty)
-                                Builder(
-                                  builder: (context) {
-                                    final currentValue = item.itemNameController.text.trim();
-                                    final subcategoriesWithEtc = [..._subcategories[_category]!, 'etc.'];
-                                    final isValidSubcategory = _subcategories[_category]!.contains(currentValue);
-                                    final isEtcOrCustom = !isValidSubcategory && currentValue.isNotEmpty;
-                                    
-                                    return Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        DropdownButtonFormField<String>(
-                                          value: currentValue.isEmpty || isEtcOrCustom
-                                              ? null
-                                              : currentValue,
+                                Column(
+                                  children: [
+                                    Builder(
+                                      builder: (context) {
+                                        final currentValue = item.itemNameController.text.trim();
+                                        final subcategoriesWithEtc = [..._subcategories[_category]!, 'etc.'];
+                                        final isValidSubcategory = _subcategories[_category]!.contains(currentValue);
+                                        final isEtcOrCustom = !isValidSubcategory && currentValue.isNotEmpty;
+                                        
+                                        return DropdownButtonFormField<String>(
+                                          value: currentValue.isEmpty || isEtcOrCustom ? null : currentValue,
                                           decoration: InputDecoration(
-                                            labelText: "Select Item (optional)",
-                                            prefixIcon: Icon(Icons.shopping_bag),
+                                            labelText: "Quick Select",
+                                            prefixIcon: Icon(Icons.list_rounded),
                                             border: OutlineInputBorder(
                                               borderRadius: BorderRadius.circular(8),
                                             ),
+                                            filled: true,
+                                            fillColor: Colors.grey[50],
                                           ),
                                           items: subcategoriesWithEtc
                                               .map((sub) => DropdownMenuItem(
@@ -405,47 +544,32 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                               }
                                             });
                                           },
-                                        ),
-                                        SizedBox(height: 12),
-                                        CustomTextField(
-                                          controller: item.itemNameController,
-                                          label: "Item Name",
-                                          prefixIcon: Icons.edit,
-                                          validator: (value) {
-                                            if (value == null || value.trim().isEmpty) {
-                                              return 'Please enter item name';
-                                            }
-                                            return null;
-                                          },
-                                          onChanged: (value) {
-                                            setState(() {});
-                                          },
-                                        ),
-                                      ],
-                                    );
-                                  },
-                                )
-                              else
-                                CustomTextField(
-                                  controller: item.itemNameController,
-                                  label: "Item Name",
-                                  prefixIcon: Icons.shopping_bag,
-                                  validator: (value) {
-                                    if (value == null || value.trim().isEmpty) {
-                                      return 'Required';
-                                    }
-                                    return null;
-                                  },
+                                        );
+                                      },
+                                    ),
+                                    SizedBox(height: 12),
+                                  ],
                                 ),
+                              CustomTextField(
+                                controller: item.itemNameController,
+                                label: "Item Name",
+                                prefixIcon: Icons.edit_rounded,
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return 'Please enter item name';
+                                  }
+                                  return null;
+                                },
+                              ),
                               SizedBox(height: 12),
                               Row(
                                 children: [
                                   Expanded(
                                     child: CustomTextField(
                                       controller: item.quantityController,
-                                      label: "Quantity",
+                                      label: "Qty",
                                       keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                      prefixIcon: Icons.numbers,
+                                      prefixIcon: Icons.numbers_rounded,
                                       onChanged: (_) => _calculateItemTotal(index),
                                       validator: (value) {
                                         if (value == null || value.trim().isEmpty) {
@@ -462,9 +586,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                   Expanded(
                                     child: CustomTextField(
                                       controller: item.priceController,
-                                      label: "Price per Item",
+                                      label: "Price",
                                       keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                      prefixIcon: Icons.attach_money,
+                                      prefixIcon: Icons.attach_money_rounded,
                                       onChanged: (_) => _calculateItemTotal(index),
                                       validator: (value) {
                                         if (value == null || value.trim().isEmpty) {
@@ -480,12 +604,40 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                                 ],
                               ),
                               SizedBox(height: 12),
-                              CustomTextField(
-                                controller: item.totalController,
-                                label: "Total Cost",
-                                keyboardType: TextInputType.numberWithOptions(decimal: true),
-                                prefixIcon: Icons.calculate,
-                                enabled: false,
+                              Container(
+                                padding: EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.blue[200]!),
+                                ),
+                                child: Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        Icon(Icons.calculate_rounded, size: 18, color: Colors.blue[700]),
+                                        SizedBox(width: 8),
+                                        Text(
+                                          "Item Total:",
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[700],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      "RM ${item.totalController.text.isEmpty ? '0.00' : item.totalController.text}",
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue[900],
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),
@@ -493,66 +645,143 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       );
                     }),
                     
-                    SizedBox(height: 16),
-                    // Overall Total
-                    Container(
-                      padding: EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.blue[50],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            "Overall Total:",
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            "RM ${overallTotal.toStringAsFixed(2)}",
-                            style: TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue[900],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    SizedBox(height: 80),
                   ],
                 ),
               ),
             ),
-            // Save Button
+            
+            // Fixed Bottom Total Bar
             Container(
-              padding: EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 4,
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
                     offset: Offset(0, -2),
                   ),
                 ],
+                borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
               ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: saveExpense,
-                  style: ElevatedButton.styleFrom(
-                    padding: EdgeInsets.symmetric(vertical: 16),
+              child: SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Colors.red[50]!, Colors.red[100]!],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.red[200]!),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  "Total Expense",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[700],
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  "RM ${overallTotal.toStringAsFixed(2)}",
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red[700],
+                                    letterSpacing: -0.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Container(
+                              padding: EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.red[700],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.account_balance_wallet_rounded,
+                                color: Colors.white,
+                                size: 32,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 56,
+                        child: ElevatedButton.icon(
+                          onPressed: saveExpense,
+                          icon: Icon(widget.isEdit ? Icons.check_circle_rounded : Icons.save_rounded),
+                          label: Text(
+                            widget.isEdit ? "Update Expense" : "Save Expense",
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            elevation: 2,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Text("Save Expense"),
                 ),
               ),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSectionHeader({
+    required IconData icon,
+    required String title,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Container(
+          padding: EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        SizedBox(width: 12),
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.grey[800],
+          ),
+        ),
+      ],
     );
   }
 }

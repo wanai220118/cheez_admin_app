@@ -1,58 +1,340 @@
 import '../models/order.dart';
+import '../models/product.dart';
 import 'price_calculator.dart';
 import 'package:intl/intl.dart';
 
 class HtmlReceiptGenerator {
-  static String generateHtmlReceipt(Order order, double orderPrice, double codFee) {
+  // Helper function to get product size
+  static String _getProductSize(Product product) {
+    if (product.size != null && product.size!.isNotEmpty) {
+      return product.size!.toLowerCase().trim();
+    }
+    
+    if (product.variant == 'Tiramisu') {
+      if ((product.price - 2.0).abs() < 0.01) {
+        return 'small';
+      } else if ((product.price - 7.0).abs() < 0.01) {
+        return 'big';
+      }
+      return product.price <= 2.0 ? 'small' : 'big';
+    } else if (product.variant == 'Cheesekut') {
+      if ((product.price - 1.50).abs() < 0.01) {
+        return 'small';
+      }
+      return 'big';
+    }
+    
+    return product.price <= 2.0 ? 'small' : 'big';
+  }
+  
+  // Helper function to find product price from products list
+  static double _findProductPrice(String itemName, List<Product>? products) {
+    // Try to find from products list first (source of truth)
+    if (products == null || products.isEmpty) {
+      print('WARNING: Products list is null or empty for item: $itemName');
+      // Fallback to hardcoded prices
+      double hardcodedPrice = _getItemPrice(itemName);
+      return hardcodedPrice > 0.0 ? hardcodedPrice : 0.0;
+    }
+    
+      // Parse format: "ProductName (Variant, Size)" or "ProductName (Variant)"
+      String? productName;
+      String? variant;
+      String? size;
+      
+      final matchWithSize = RegExp(r'^(.+?)\s*\(\s*([^,]+)\s*,\s*([^)]+)\s*\)$').firstMatch(itemName);
+      final matchWithoutSize = RegExp(r'^(.+?)\s*\(\s*([^)]+)\s*\)$').firstMatch(itemName);
+      
+      if (matchWithSize != null) {
+        productName = matchWithSize.group(1)!.trim();
+        variant = matchWithSize.group(2)!.trim();
+        size = matchWithSize.group(3)!.trim().toLowerCase();
+      } else if (matchWithoutSize != null) {
+        productName = matchWithoutSize.group(1)!.trim();
+        variant = matchWithoutSize.group(2)!.trim();
+      }
+      
+      // Debug: print what we're looking for
+      print('Looking for product: name="$productName", variant="$variant", size="$size"');
+      print('Available products count: ${products?.length ?? 0}');
+      
+      if (productName != null && variant != null) {
+        // Try to find the product in the products list
+        try {
+          Product? product;
+          // Store variant in non-nullable variable since we've already checked it's not null
+          final variantLower = variant!.toLowerCase();
+          final productNameLower = productName!.toLowerCase();
+          
+          if (size != null) {
+            final sizeLower = size.toLowerCase();
+            // First try exact match with size
+            try {
+              product = products.firstWhere(
+                (p) {
+                  final pSize = _getProductSize(p);
+                  final match = p.name.toLowerCase() == productNameLower && 
+                         p.variant.toLowerCase() == variantLower && 
+                         pSize == sizeLower;
+                  if (match) {
+                    print('Exact match found: ${p.name} (${p.variant}), size: $pSize, price: ${p.price}');
+                  }
+                  return match;
+                },
+              );
+            } catch (e) {
+              // If exact match fails, try to find by name and variant, then filter by expected price for size
+              print('Exact match failed for $itemName, trying flexible matching...');
+              final matchingProducts = products.where(
+                (p) => p.name.toLowerCase() == productNameLower && 
+                       p.variant.toLowerCase() == variantLower
+              ).toList();
+              
+              print('Found ${matchingProducts.length} matching products for $productName ($variantLower)');
+              for (var p in matchingProducts) {
+                print('  - ${p.name} (${p.variant}), size: ${_getProductSize(p)}, price: ${p.price}');
+              }
+              
+              if (matchingProducts.isNotEmpty) {
+                // For Cheesekut big, look for price > 1.50 (not small)
+                if (variantLower == 'cheesekut' && sizeLower == 'big') {
+                  final bigProducts = matchingProducts.where(
+                    (p) => (p.price - 1.50).abs() > 0.01 // Not small price
+                  ).toList();
+                  if (bigProducts.isNotEmpty) {
+                    product = bigProducts.first;
+                    print('Selected Cheesekut big product: ${product.name}, price: ${product.price}');
+                  } else {
+                    // If no big product found, try to find by size field
+                    final sizeProducts = matchingProducts.where(
+                      (p) => p.size?.toLowerCase() == 'big'
+                    ).toList();
+                    if (sizeProducts.isNotEmpty) {
+                      product = sizeProducts.first;
+                      print('Selected by size field: ${product.name}, price: ${product.price}');
+                    } else {
+                      throw Exception('No Cheesekut big product found');
+                    }
+                  }
+                } else if (variantLower == 'cheesekut' && sizeLower == 'small') {
+                  product = matchingProducts.firstWhere(
+                    (p) => (p.price - 1.50).abs() < 0.01, // Small price
+                    orElse: () => matchingProducts.first,
+                  );
+                } else {
+                  // For other variants, use first match
+                  product = matchingProducts.first;
+                }
+              } else {
+                throw Exception('No matching products found');
+              }
+            }
+          } else {
+            product = products.firstWhere(
+              (p) => p.name.toLowerCase() == productNameLower && p.variant.toLowerCase() == variantLower,
+              orElse: () => products.firstWhere(
+                (p) => p.name.toLowerCase() == productNameLower,
+              ),
+            );
+          }
+          print('Found product for $itemName: ${product.name} (${product.variant}), size: ${_getProductSize(product)}, price: ${product.price}');
+          return product.price;
+        } catch (e) {
+          // If product not found, fall back to hardcoded prices
+          print('Product not found in list for: $itemName (productName: $productName, variant: $variant, size: $size) - $e');
+          print('All available products:');
+          for (var p in products) {
+            print('  - ${p.name} (variant: ${p.variant}, size: ${p.size ?? "null"}, price: ${p.price})');
+          }
+        }
+      }
+    
+    // Fallback to hardcoded prices if products list not available or product not found
+    double hardcodedPrice = _getItemPrice(itemName);
+    if (hardcodedPrice > 0.0) {
+      print('Using hardcoded price for $itemName: $hardcodedPrice');
+      return hardcodedPrice;
+    }
+    
+    // Last resort: try to find ANY product with matching name (case-insensitive partial match)
+    if (products != null && products.isNotEmpty && productName != null) {
+      try {
+        final productNameLower = productName!.toLowerCase();
+        final matchingProducts = products.where(
+          (p) => p.name.toLowerCase().contains(productNameLower) || 
+                 productNameLower.contains(p.name.toLowerCase())
+        ).toList();
+        
+        if (matchingProducts.isNotEmpty) {
+          // For Cheesekut big, prefer products with price > 1.50
+          if (variant != null && variant!.toLowerCase() == 'cheesekut' && 
+              size != null && size!.toLowerCase() == 'big') {
+            final bigProducts = matchingProducts.where(
+              (p) => (p.price - 1.50).abs() > 0.01
+            ).toList();
+            if (bigProducts.isNotEmpty) {
+              print('Found Cheesekut big by partial name match: ${bigProducts.first.name}, price: ${bigProducts.first.price}');
+              return bigProducts.first.price;
+            }
+          }
+          // Otherwise use first match
+          print('Found product by partial name match: ${matchingProducts.first.name}, price: ${matchingProducts.first.price}');
+          return matchingProducts.first.price;
+        }
+      } catch (e) {
+        print('Error in partial match fallback: $e');
+      }
+    }
+    
+    print('Could not determine price for: $itemName');
+    return 0.0;
+  }
+  // Helper function to calculate price from item name
+  static double _getItemPrice(String itemName) {
+    try {
+      // Simple approach: check if item name contains variant and size keywords
+      final itemLower = itemName.toLowerCase();
+      
+      // Check for Tiramisu
+      if (itemLower.contains('tiramisu')) {
+        if (itemLower.contains(', small') || itemLower.contains('(tiramisu, small')) {
+          return 2.0;
+        } else if (itemLower.contains(', big') || itemLower.contains('(tiramisu, big')) {
+          return 7.0;
+        }
+        // Default for Tiramisu without explicit size
+        return 2.0;
+      }
+      
+      // Check for Cheesekut
+      if (itemLower.contains('cheesekut')) {
+        if (itemLower.contains(', small') || itemLower.contains('(cheesekut, small')) {
+          return 1.50;
+        } else if (itemLower.contains(', big') || itemLower.contains('(cheesekut, big')) {
+          // Don't use hardcoded price for Cheesekut big - should come from database
+          // Return 0.0 to force product lookup
+          return 0.0;
+        }
+        // Default for Cheesekut without explicit size
+        return 1.50;
+      }
+      
+      // Try regex parsing as fallback
+      final matchWithSize = RegExp(r'\(([^,]+),\s*([^)]+)\)').firstMatch(itemName);
+      if (matchWithSize != null) {
+        final variant = matchWithSize.group(1)!.trim().toLowerCase();
+        final size = matchWithSize.group(2)!.trim().toLowerCase();
+        
+        if (variant == 'tiramisu') {
+          return size == 'small' ? 2.0 : 7.0;
+        } else if (variant == 'cheesekut') {
+          return size == 'small' ? 1.50 : 0.0; // Don't use hardcoded for big
+        }
+      }
+      
+      // Try format without size
+      final matchWithoutSize = RegExp(r'\(([^)]+)\)').firstMatch(itemName);
+      if (matchWithoutSize != null) {
+        final variant = matchWithoutSize.group(1)!.trim().toLowerCase();
+        if (variant == 'tiramisu') {
+          return 2.0;
+        } else if (variant == 'cheesekut') {
+          return 1.50;
+        }
+      }
+      
+      print('Could not determine price for item: $itemName');
+    } catch (e) {
+      print('Error parsing item price for: $itemName - $e');
+    }
+    
+    // Default price if unknown
+    return 0.0;
+  }
+  
+  static String generateHtmlReceipt(Order order, double orderPrice, double codFee, {List<Product>? products}) {
     final dateFormat = DateFormat('dd MMM yyyy');
     final timeFormat = DateFormat('hh:mm a');
     
-    // Build order items HTML
+    // Build order items HTML grouped by series
     String itemsHtml = '';
-    int itemNumber = 1;
     
-    // Single items
-    if (order.items.isNotEmpty) {
-      order.items.forEach((itemName, quantity) {
-        itemsHtml += '''
-          <div class="item-card">
-            <div class="item-name">$itemNumber. $itemName</div>
-            <div class="item-detail">• $itemName: $quantity pcs</div>
-          </div>
-        ''';
-        itemNumber++;
-      });
-    }
+    // Group items by series
+    Map<String, Map<String, int>> tiramisuItems = {};
+    Map<String, Map<String, int>> cheesekutItems = {};
+    Map<String, Map<String, int>> otherItems = {};
     
-    // Combo packs
-    if (order.comboPacks.isNotEmpty) {
-      order.comboPacks.forEach((comboType, allocation) {
-        // Format combo name
-        String comboName;
-        if (comboType.toLowerCase().contains('small')) {
-          comboName = 'Small Combo';
-        } else if (comboType.toLowerCase().contains('standard')) {
-          comboName = 'Standard Combo';
+    // Build table rows for all items with prices
+    List<Map<String, dynamic>> allItemsList = [];
+    
+    order.items.forEach((itemName, quantity) {
+      // Parse format: "ProductName (Variant, Size)" or "ProductName (Variant)"
+      String displayName = itemName;
+      String? size;
+      final matchWithSize = RegExp(r'^(.+?)\s*\(([^,]+),\s*([^)]+)\)$').firstMatch(itemName);
+      final matchWithoutSize = RegExp(r'^(.+?)\s*\(([^)]+)\)$').firstMatch(itemName);
+      
+      if (matchWithSize != null) {
+        final productName = matchWithSize.group(1)!.trim();
+        size = matchWithSize.group(3)!.trim().toLowerCase();
+        // Convert size to S/L format: small -> S, big -> L
+        String sizeDisplay = '';
+        if (size == 'small') {
+          sizeDisplay = 'S';
+        } else if (size == 'big') {
+          sizeDisplay = 'L';
         } else {
-          comboName = comboType.replaceAll('_', ' ').split(' ').map((word) => 
-            word.isEmpty ? '' : word[0].toUpperCase() + word.substring(1)
-          ).join(' ');
+          // If size is already S or L, use it as is
+          sizeDisplay = size.toUpperCase();
         }
-        
-        String comboDetails = '';
-        allocation.forEach((flavor, quantity) {
-          comboDetails += '<div class="item-detail">• $flavor: $quantity pcs</div>';
-        });
-        
-        itemsHtml += '''
-          <div class="item-card">
-            <div class="item-name">$itemNumber. $comboName Combo Pack</div>
-            $comboDetails
-          </div>
-        ''';
-        itemNumber++;
+        displayName = '$productName ($sizeDisplay)';
+      } else if (matchWithoutSize != null) {
+        displayName = matchWithoutSize.group(1)!.trim();
+      }
+      
+      // Get price from products list if available, otherwise use hardcoded prices
+      double price = _findProductPrice(itemName, products);
+      
+      // Debug output
+      if (price == 0.0) {
+        print('Warning: Price is 0.0 for item: $itemName');
+      }
+      
+      allItemsList.add({
+        'name': displayName,
+        'quantity': quantity,
+        'price': price,
       });
+    });
+    
+    // Generate HTML table
+    if (allItemsList.isNotEmpty) {
+      itemsHtml += '''
+        <table style="width: 100%; border-collapse: collapse; margin-top: 8px;">
+          <tbody>
+      ''';
+      
+      allItemsList.forEach((item) {
+        final name = item['name'] as String;
+        final quantity = item['quantity'] as int;
+        final price = item['price'] as double;
+        final quantityText = '$quantity ${quantity == 1 ? 'pc' : 'pcs'}';
+        final priceText = PriceCalculator.formatPrice(price);
+        itemsHtml += '''
+            <tr style="border-bottom: 1px solid #e0e0e0;">
+              <td style="padding: 8px; color: #333;">$name</td>
+              <td style="padding: 8px; text-align: right; color: #333;">$quantityText</td>
+              <td style="padding: 8px; text-align: right; color: #333;">$priceText</td>
+            </tr>
+        ''';
+      });
+      
+      itemsHtml += '''
+          </tbody>
+        </table>
+      ''';
     }
+    
     
     // Payment method text
     String paymentMethodText = order.paymentMethod == 'pickup' ? 'AMBIL' : 'COD';
@@ -125,18 +407,22 @@ class HtmlReceiptGenerator {
             min-height: 100vh;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             padding: 20px;
+            overflow-y: auto;
         }
         
         .receipt {
             background: white;
             width: 100%;
             max-width: 420px;
+            max-height: 100vh;
             border-radius: 20px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
             animation: slideIn 0.5s ease-out;
+            display: flex;
+            flex-direction: column;
         }
         
         @keyframes slideIn {
@@ -193,6 +479,8 @@ class HtmlReceiptGenerator {
         
         .content {
             padding: 30px 25px;
+            max-height: calc(100vh - 200px);
+            overflow-y: auto;
         }
         
         .section {

@@ -4,14 +4,16 @@ import 'package:path_provider/path_provider.dart';
 import 'package:screenshot/screenshot.dart';
 import 'package:flutter/material.dart';
 import '../models/order.dart';
+import '../models/product.dart';
 import '../widgets/receipt_widget.dart';
 
 class ReceiptImageGenerator {
   static Future<Uint8List?> generateReceiptImage(
     Order order,
     double orderPrice,
-    double codFee,
-  ) async {
+    double codFee, {
+    List<Product>? products,
+  }) async {
     try {
       print('Creating screenshot controller...');
       final screenshotController = ScreenshotController();
@@ -37,12 +39,13 @@ class ReceiptImageGenerator {
                     constraints: BoxConstraints(
                       minWidth: 420,
                       maxWidth: 420,
-                      // No maxHeight constraint - allow unlimited height
+                      // No maxHeight constraint - allow unlimited height for full receipt capture
                     ),
                     child: ReceiptWidget(
                       order: order,
                       orderPrice: orderPrice,
                       codFee: codFee,
+                      products: products,
                     ),
                   ),
                 ),
@@ -71,11 +74,12 @@ class ReceiptImageGenerator {
   static Future<String?> saveReceiptImage(
     Order order,
     double orderPrice,
-    double codFee,
-  ) async {
+    double codFee, {
+    List<Product>? products,
+  }) async {
     try {
       print('Starting receipt image generation...');
-      final imageBytes = await generateReceiptImage(order, orderPrice, codFee);
+      final imageBytes = await generateReceiptImage(order, orderPrice, codFee, products: products);
       if (imageBytes == null) {
         print('Error: Image bytes are null');
         return null;

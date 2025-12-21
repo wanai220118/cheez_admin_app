@@ -85,7 +85,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         codAddress: _order.codAddress,
         paymentChannel: _order.paymentChannel,
         items: _order.items,
-        comboPacks: _order.comboPacks,
+        comboPacks: {},
         totalPcs: _order.totalPcs,
         totalPrice: _order.totalPrice,
         status: _order.status,
@@ -298,45 +298,6 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               SizedBox(height: 16),
             ],
 
-            // Combo Packs
-            if (_order.comboPacks.isNotEmpty) ...[
-              Text(
-                "Combo Packs",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              SizedBox(height: 8),
-              ..._order.comboPacks.entries.map((comboEntry) {
-                return Card(
-                  margin: EdgeInsets.only(bottom: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text(
-                          comboEntry.key,
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      Divider(height: 1),
-                      ...comboEntry.value.entries
-                          .where((e) => e.value > 0)
-                          .map((entry) => FlavorCountTile(
-                                flavor: entry.key,
-                                count: entry.value,
-                              )),
-                    ],
-                  ),
-                );
-              }),
-              SizedBox(height: 16),
-            ],
 
             // Summary Card
             Card(

@@ -22,12 +22,12 @@ class SalesScreen extends StatefulWidget {
 class _SalesScreenState extends State<SalesScreen> {
   final FirestoreService _fs = FirestoreService();
   DateTime _selectedDate = DateTime.now();
-  String _viewMode = 'today'; // 'today', 'all'
+  String _viewMode = 'today';
   bool _includeSummary = true;
   bool _includeTopProducts = true;
   DateTime? _exportStartDate;
   DateTime? _exportEndDate;
-  String _exportDateMode = 'current'; // 'current', 'range', 'all'
+  String _exportDateMode = 'current';
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -35,6 +35,16 @@ class _SalesScreenState extends State<SalesScreen> {
       initialDate: _selectedDate,
       firstDate: DateTime(2020),
       lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: ColorScheme.light(
+              primary: Theme.of(context).colorScheme.primary,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null && picked != _selectedDate) {
       setState(() {
@@ -44,7 +54,6 @@ class _SalesScreenState extends State<SalesScreen> {
   }
 
   Future<void> _showExportFilterDialog(BuildContext context) async {
-    // Initialize export dates if not set
     if (_exportStartDate == null) {
       _exportStartDate = _selectedDate;
       _exportEndDate = _selectedDate;
@@ -55,7 +64,14 @@ class _SalesScreenState extends State<SalesScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return AlertDialog(
-            title: Text("Export Options"),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: Row(
+              children: [
+                Icon(Icons.file_download_rounded, color: Theme.of(context).colorScheme.primary),
+                SizedBox(width: 12),
+                Text("Export Options"),
+              ],
+            ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -63,7 +79,7 @@ class _SalesScreenState extends State<SalesScreen> {
                 children: [
                   Text(
                     "Date Range:",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[800]),
                   ),
                   SizedBox(height: 8),
                   RadioListTile<String>(
@@ -120,7 +136,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       child: InputDecorator(
                         decoration: InputDecoration(
                           labelText: "Start Date",
-                          prefixIcon: Icon(Icons.calendar_today),
+                          prefixIcon: Icon(Icons.calendar_today_rounded),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -150,7 +166,7 @@ class _SalesScreenState extends State<SalesScreen> {
                       child: InputDecorator(
                         decoration: InputDecoration(
                           labelText: "End Date",
-                          prefixIcon: Icon(Icons.calendar_today),
+                          prefixIcon: Icon(Icons.calendar_today_rounded),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -168,7 +184,7 @@ class _SalesScreenState extends State<SalesScreen> {
                   SizedBox(height: 8),
                   Text(
                     "Content:",
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey[800]),
                   ),
                   SizedBox(height: 8),
                   CheckboxListTile(
@@ -197,7 +213,7 @@ class _SalesScreenState extends State<SalesScreen> {
                 onPressed: () => Navigator.pop(context),
                 child: Text("Cancel"),
               ),
-              ElevatedButton(
+              ElevatedButton.icon(
                 onPressed: () {
                   if (_exportDateMode == 'range' && (_exportStartDate == null || _exportEndDate == null)) {
                     Fluttertoast.showToast(msg: "Please select start and end dates");
@@ -211,7 +227,13 @@ class _SalesScreenState extends State<SalesScreen> {
                     'endDate': _exportEndDate,
                   });
                 },
-                child: Text("Export"),
+                icon: Icon(Icons.download_rounded),
+                label: Text("Export"),
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
               ),
             ],
           );
@@ -231,17 +253,14 @@ class _SalesScreenState extends State<SalesScreen> {
 
   Future<void> _exportToPDF(BuildContext context) async {
     try {
-      // Get orders data based on export date mode
       List<Order> allOrders = [];
       
       if (_exportDateMode == 'all') {
         allOrders = await _fs.getAllOrders().first;
       } else if (_exportDateMode == 'range' && _exportStartDate != null && _exportEndDate != null) {
-        // Get orders for date range
         final startDate = DateTime(_exportStartDate!.year, _exportStartDate!.month, _exportStartDate!.day);
         final endDate = DateTime(_exportEndDate!.year, _exportEndDate!.month, _exportEndDate!.day).add(Duration(days: 1));
         
-        // Get all orders and filter by date range
         final allOrdersList = await _fs.getAllOrders().first;
         allOrders = allOrdersList.where((order) {
           final orderDate = DateTime(order.orderDate.year, order.orderDate.month, order.orderDate.day);
@@ -249,20 +268,15 @@ class _SalesScreenState extends State<SalesScreen> {
                  orderDate.isBefore(endDate);
         }).toList();
       } else {
-        // Current date mode
         allOrders = await _fs.getOrdersByDate(_exportStartDate ?? _selectedDate).first;
       }
 
-      // Filter out invalid/deleted orders (orders with no items, zero pieces, or zero price)
       final orders = allOrders.where((order) {
-        // Check if order has valid data
         final hasItems = order.items.isNotEmpty;
         final hasComboPacks = order.comboPacks.isNotEmpty && 
             order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
         final hasValidPcs = order.totalPcs > 0;
         final hasValidPrice = order.totalPrice > 0;
-        
-        // Include order only if it has items/comboPacks AND valid pieces AND valid price
         return (hasItems || hasComboPacks) && hasValidPcs && hasValidPrice;
       }).toList();
 
@@ -271,7 +285,6 @@ class _SalesScreenState extends State<SalesScreen> {
         return;
       }
 
-      // Calculate sales data
       double totalSales = 0.0;
       int totalPcs = 0;
       int totalOrders = orders.length;
@@ -311,7 +324,6 @@ class _SalesScreenState extends State<SalesScreen> {
       final sortedProducts = productSales.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
 
-      // Create PDF
       final pdf = pw.Document();
       final dateFormat = DateFormat('yyyy-MM-dd');
       final dateTimeFormat = DateFormat('yyyy-MM-dd HH:mm');
@@ -322,7 +334,6 @@ class _SalesScreenState extends State<SalesScreen> {
           margin: pw.EdgeInsets.all(40),
           build: (pw.Context context) {
             return [
-              // Header
               pw.Header(
                 level: 0,
                 child: pw.Column(
@@ -355,7 +366,6 @@ class _SalesScreenState extends State<SalesScreen> {
               ),
               pw.SizedBox(height: 20),
               
-              // Summary Section
               if (_includeSummary) pw.Container(
                 padding: pw.EdgeInsets.all(12),
                 decoration: pw.BoxDecoration(
@@ -400,7 +410,6 @@ class _SalesScreenState extends State<SalesScreen> {
               ),
               if (_includeSummary) pw.SizedBox(height: 20),
 
-              // Top Products Section
               if (_includeTopProducts) pw.Text(
                 "Top Selling Products",
                 style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
@@ -443,7 +452,6 @@ class _SalesScreenState extends State<SalesScreen> {
         ),
       );
 
-      // Save and share PDF
       final output = await getTemporaryDirectory();
       String fileName;
       if (_exportDateMode == 'all') {
@@ -456,7 +464,6 @@ class _SalesScreenState extends State<SalesScreen> {
       final file = File("${output.path}/$fileName");
       await file.writeAsBytes(await pdf.save());
 
-      // Share the PDF
       final xFile = XFile(file.path);
       await Share.shareXFiles([xFile], text: 'Sales Report');
 
@@ -468,9 +475,13 @@ class _SalesScreenState extends State<SalesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text("Sales"),
+        title: Text("Sales Report"),
+        elevation: 0,
         actions: [
           IconButton(
             icon: SvgIcon(
@@ -483,7 +494,7 @@ class _SalesScreenState extends State<SalesScreen> {
           ),
           Builder(
             builder: (context) => IconButton(
-              icon: Icon(Icons.picture_as_pdf),
+              icon: Icon(Icons.picture_as_pdf_rounded),
               onPressed: () => _showExportFilterDialog(context),
               tooltip: 'Export to PDF',
             ),
@@ -492,62 +503,115 @@ class _SalesScreenState extends State<SalesScreen> {
       ),
       body: Column(
         children: [
-          Container(
-            padding: EdgeInsets.all(16),
-            color: Colors.orange[50],
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  DateFormatter.getRelativeDate(_selectedDate),
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          // Enhanced Date Display
+          if (_viewMode == 'today')
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    theme.colorScheme.primary.withOpacity(0.1),
+                    Colors.green[50]!,
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
                 ),
-                TextButton.icon(
-                  onPressed: () => _selectDate(context),
-                  icon: SvgIcon(
-                    assetPath: 'assets/icons/calendar-icon.svg',
-                    size: 20,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: Offset(0, 2),
                   ),
-                  label: Text('Change Date'),
+                ],
+              ),
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        DateFormatter.getRelativeDate(_selectedDate),
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      SizedBox(height: 2),
+                      Text(
+                        DateFormatter.formatDate(_selectedDate),
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey[600],
+                        ),
+                      ),
+                    ],
+                  ),
+                  Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    elevation: 1,
+                    child: InkWell(
+                      onTap: () => _selectDate(context),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        child: Row(
+                          children: [
+                            SvgIcon(
+                              assetPath: 'assets/icons/calendar-icon.svg',
+                              size: 18,
+                              color: theme.colorScheme.primary,
+                            ),
+                            SizedBox(width: 6),
+                            Text(
+                              'Change',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: theme.colorScheme.primary,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          
+          // Enhanced View Mode Toggle
+          Container(
+            margin: EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _buildSegmentedButton(
+                    label: 'Today',
+                    isSelected: _viewMode == 'today',
+                    onTap: () => setState(() => _viewMode = 'today'),
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+                Expanded(
+                  child: _buildSegmentedButton(
+                    label: 'All Time',
+                    isSelected: _viewMode == 'all',
+                    onTap: () => setState(() => _viewMode = 'all'),
+                    color: Colors.teal,
+                  ),
                 ),
               ],
             ),
           ),
-          // View Mode Toggle
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: Row(
-              children: [
-                Expanded(
-                  child: ChoiceChip(
-                    label: Text('Today'),
-                    selected: _viewMode == 'today',
-                    selectedColor: Theme.of(context).colorScheme.primary,
-                    labelStyle: TextStyle(
-                      color: _viewMode == 'today' ? Colors.white : Colors.black87,
-                    ),
-                    onSelected: (selected) {
-                      if (selected) setState(() => _viewMode = 'today');
-                    },
-                  ),
-                ),
-                SizedBox(width: 8),
-                Expanded(
-                  child: ChoiceChip(
-                    label: Text('All Time'),
-                    selected: _viewMode == 'all',
-                    selectedColor: Colors.teal,
-                    labelStyle: TextStyle(
-                      color: _viewMode == 'all' ? Colors.white : Colors.black87,
-                    ),
-                    onSelected: (selected) {
-                      if (selected) setState(() => _viewMode = 'all');
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
+          
           Expanded(
             child: StreamBuilder<List<Order>>(
               key: ValueKey('sales_${_viewMode}_${_selectedDate.millisecondsSinceEpoch}'),
@@ -556,26 +620,45 @@ class _SalesScreenState extends State<SalesScreen> {
                   : _fs.getAllOrders(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator());
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        CircularProgressIndicator(),
+                        SizedBox(height: 16),
+                        Text(
+                          'Loading sales data...',
+                          style: TextStyle(color: Colors.grey[600]),
+                        ),
+                      ],
+                    ),
+                  );
                 }
                 if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.error_outline_rounded, size: 64, color: Colors.red[300]),
+                        SizedBox(height: 16),
+                        Text('Error loading data', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        SizedBox(height: 8),
+                        Text('${snapshot.error}', style: TextStyle(color: Colors.grey[600])),
+                      ],
+                    ),
+                  );
                 }
                 if (!snapshot.hasData) {
                   return Center(child: Text('No data'));
                 }
-                final allOrders = snapshot.data!;
                 
-                // Filter out invalid/deleted orders (orders with no items, zero pieces, or zero price)
+                final allOrders = snapshot.data!;
                 final orders = allOrders.where((order) {
-                  // Check if order has valid data
                   final hasItems = order.items.isNotEmpty;
                   final hasComboPacks = order.comboPacks.isNotEmpty && 
                       order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
                   final hasValidPcs = order.totalPcs > 0;
                   final hasValidPrice = order.totalPrice > 0;
-                  
-                  // Include order only if it has items/comboPacks AND valid pieces AND valid price
                   return (hasItems || hasComboPacks) && hasValidPcs && hasValidPrice;
                 }).toList();
                 
@@ -588,16 +671,14 @@ class _SalesScreenState extends State<SalesScreen> {
                   );
                 }
                 
-                // Calculate sales from orders
+                // Calculate sales data
                 double totalSales = 0.0;
                 int totalPcs = 0;
                 int totalOrders = orders.length;
-                
-                // Calculate sales by product
                 Map<String, int> productSales = {};
                 Map<String, double> productRevenue = {};
+                
                 for (var order in orders) {
-                  // Recalculate pieces per order
                   int orderPcs = 0;
                   order.items.forEach((itemName, quantity) {
                     productSales[itemName] = (productSales[itemName] ?? 0) + quantity;
@@ -612,10 +693,8 @@ class _SalesScreenState extends State<SalesScreen> {
                   });
                   
                   totalPcs += orderPcs;
-                  // Include COD fee in total sales (order.totalPrice already includes COD fee when order was saved)
                   totalSales += order.totalPrice;
                   
-                  // Estimate revenue per product using this order's average price per piece
                   if (orderPcs > 0) {
                     final pricePerPc = order.totalPrice / orderPcs;
                     order.items.forEach((itemName, quantity) {
@@ -634,110 +713,130 @@ class _SalesScreenState extends State<SalesScreen> {
                   ..sort((a, b) => b.value.compareTo(a.value));
                 
                 return SingleChildScrollView(
-                  padding: EdgeInsets.all(16),
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Summary Cards
+                      // Enhanced Summary Cards
+                      _buildSummaryCard(
+                        "Total Sales",
+                        PriceCalculator.formatPrice(totalSales),
+                        Icons.monetization_on_rounded,
+                        Colors.green,
+                      ),
+                      SizedBox(height: 12),
                       Row(
                         children: [
                           Expanded(
-                            child: Card(
-                              color: Colors.green[50],
-                              child: Padding(
-                                padding: EdgeInsets.all(16),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      "Total Sales",
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      PriceCalculator.formatPrice(totalSales),
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.green[900],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            child: _buildCompactSummaryCard(
+                              "Orders",
+                              "$totalOrders",
+                              Icons.receipt_long_rounded,
+                              Colors.blue,
                             ),
                           ),
                           SizedBox(width: 12),
                           Expanded(
-                            child: Card(
-                              color: Colors.blue[50],
-                              child: Padding(
-                                padding: EdgeInsets.all(16),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      "Total Orders",
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      "$totalOrders",
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.blue[900],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          SizedBox(width: 12),
-                          Expanded(
-                            child: Card(
-                              color: Colors.orange[50],
-                              child: Padding(
-                                padding: EdgeInsets.all(16),
-                                child: Column(
-                                  children: [
-                                    Text(
-                                      "Total Pieces",
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                                    ),
-                                    SizedBox(height: 4),
-                                    Text(
-                                      "$totalPcs pcs",
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.orange[900],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
+                            child: _buildCompactSummaryCard(
+                              "Pieces",
+                              "$totalPcs pcs",
+                              Icons.inventory_2_rounded,
+                              Colors.orange,
                             ),
                           ),
                         ],
                       ),
                       SizedBox(height: 24),
+                      
+                      // Top Products Section
                       if (sortedProducts.isNotEmpty) ...[
-                        Text(
-                          "Top Selling Products",
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                        ),
-                        SizedBox(height: 12),
-                        ...sortedProducts.take(10).map((entry) {
-                          return Card(
-                            margin: EdgeInsets.only(bottom: 8),
-                            child: ListTile(
-                              title: Text(entry.key),
-                              trailing: Text(
-                                "${entry.value} pcs",
+                        Padding(
+                          padding: EdgeInsets.only(bottom: 12),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.bar_chart_rounded,
+                                color: theme.colorScheme.primary,
+                                size: 24,
+                              ),
+                              SizedBox(width: 8),
+                              Text(
+                                "Top Selling Products",
                                 style: TextStyle(
-                                  fontSize: 16,
+                                  fontSize: 20,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.orange[900],
+                                  color: Colors.grey[800],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        ...sortedProducts.take(10).toList().asMap().entries.map((mapEntry) {
+                          final index = mapEntry.key;
+                          final entry = mapEntry.value;
+                          return Container(
+                            margin: EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.05),
+                                  blurRadius: 5,
+                                  offset: Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: ListTile(
+                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              leading: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: index == 0
+                                        ? [Colors.amber[400]!, Colors.amber[600]!]
+                                        : index == 1
+                                        ? [Colors.grey[400]!, Colors.grey[600]!]
+                                        : index == 2
+                                        ? [Colors.brown[400]!, Colors.brown[600]!]
+                                        : [Colors.blue[400]!, Colors.blue[600]!],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '#${index + 1}',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              title: Text(
+                                entry.key,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
+                              ),
+                              trailing: Container(
+                                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.orange[50],
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                                child: Text(
+                                  "${entry.value} pcs",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange[900],
+                                  ),
                                 ),
                               ),
                             ),
@@ -751,6 +850,161 @@ class _SalesScreenState extends State<SalesScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentedButton({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+    required Color color,
+  }) {
+    return AnimatedContainer(
+      duration: Duration(milliseconds: 200),
+      margin: EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: isSelected ? color : Colors.transparent,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: color.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ]
+            : [],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: EdgeInsets.symmetric(vertical: 12),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? Colors.white : Colors.grey[700],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSummaryCard(String label, String value, IconData icon, Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withOpacity(0.3), width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.1),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(20),
+        child: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(icon, color: color, size: 32),
+            ),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  SizedBox(height: 4),
+                  Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactSummaryCard(String label, String value, IconData icon, Color color) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: [
+            Container(
+              padding: EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            SizedBox(height: 12),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey[600],
+              ),
+            ),
+            SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[800],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

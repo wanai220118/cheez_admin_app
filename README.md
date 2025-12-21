@@ -177,7 +177,14 @@ This admin application provides a complete solution for managing a dessert busin
   - COD orders count and revenue (shown only when "All" is selected)
   - Pickup orders count and revenue (shown only when "All" is selected)
   - Side-by-side comparison cards (hidden when COD or Pickup tab is selected)
-  - Flavor count breakdown (shown only when "All" is selected)
+  - Flavor breakdown by series and size (shown only when "All" is selected)
+- **Flavor Breakdown Table**:
+  - Organized by Series (Tiramisu, Cheesekut, etc.)
+  - Grouped by Size (Small, Big, Combo)
+  - Each flavor displayed on its own row
+  - Table format with 4 columns: Series | Size | Flavor | Quantity
+  - Easy to scan and analyze product sales by category
+  - Includes all purchased items (single items and combo packs)
 - **Date-based Analysis**:
   - Select any date to view scheduled pickup/COD orders
   - Shows orders based on pickup/COD date (not order creation date)
@@ -188,8 +195,13 @@ This admin application provides a complete solution for managing a dessert busin
   - Export order analysis reports in PDF format
   - **Content Filtering Options**:
     - Include/exclude summary statistics
-    - Include/exclude flavor count breakdown
+    - Include/exclude flavor breakdown table (with series and size grouping)
     - Include/exclude orders list
+  - **Date Filtering Options**:
+    - Export current date data
+    - Export date range (select start and end dates)
+    - Export single date data
+  - Flavor breakdown table matches on-screen display format
   - Date range and generation timestamp
   - Share PDF via device sharing options
 
