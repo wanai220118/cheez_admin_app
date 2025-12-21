@@ -19,12 +19,18 @@ This admin application provides a complete solution for managing a dessert busin
   - Order Count
   - Total Pieces Sold
   - Net Profit
+- **Weekly Overview**: Statistics for the current week (Monday to Sunday)
+  - Total Revenue for the week
+  - Total Orders Count for the week
+  - Average Revenue per Day
+  - Total Pieces Sold for the week
+  - Daily breakdown showing revenue, pieces, and orders for each day of the week
 - **All Time Overview**: Comprehensive statistics across all time
   - Total Revenue
   - Total Pieces Sold
   - Net Profit (Revenue - Expenses)
   - Total Orders Count
-- **Swipeable Views**: Easy navigation between Today and All Time views with page indicators
+- **Swipeable Views**: Easy navigation between Today, Weekly, and All Time views with page indicators
 - **Quick Access Grid**: Direct navigation to all major features
 
 ### 🛍️ Products Management
