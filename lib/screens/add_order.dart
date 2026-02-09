@@ -1803,6 +1803,8 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                                     DropdownMenuItem(value: 'all', child: Text('All')),
                                     DropdownMenuItem(value: 'Tiramisu', child: Text('Tiramisu')),
                                     DropdownMenuItem(value: 'Cheesekut', child: Text('Cheesekut')),
+                                    DropdownMenuItem(value: 'Banana Pudding', child: Text('Banana Pudding')),
+                                    DropdownMenuItem(value: 'Others', child: Text('Others')),
                                   ],
                                   onChanged: (value) {
                                     setState(() {

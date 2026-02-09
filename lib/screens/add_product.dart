@@ -19,8 +19,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
   final _priceController = TextEditingController();
   final _costController = TextEditingController();
   final _descriptionController = TextEditingController();
-  String _series = 'Tiramisu'; // Series: Tiramisu or Cheesekut
-  String _size = 'small'; // Size: small or big
+  String _series = 'Tiramisu'; // Series: Tiramisu, Cheesekut, Banana Pudding, Others
+  String _size = 'none'; // Size: small, big or none (optional)
   final FirestoreService _fs = FirestoreService();
   File? _selectedImage;
   String? _imagePath;
@@ -75,7 +75,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         imageUrl: _imagePath ?? 'assets/images/placeholder.jpg',
         description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
         isActive: true,
-        size: _size,
+        size: _size == 'none' ? null : _size,
       );
       _fs.addProduct(product);
       Fluttertoast.showToast(msg: "Product added successfully");
@@ -153,7 +153,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
                   ),
                   prefixIcon: Icon(Icons.category),
                 ),
-                items: ['Tiramisu', 'Cheesekut']
+                items: ['Tiramisu', 'Cheesekut', 'Banana Pudding', 'Others']
                     .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                     .toList(),
                 onChanged: (s) => setState(() => _series = s!),
@@ -163,19 +163,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
               DropdownButtonFormField<String>(
                 value: _size,
                 decoration: InputDecoration(
-                  labelText: "Size",
+                  labelText: "Size (optional)",
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                   prefixIcon: Icon(Icons.aspect_ratio),
                 ),
                 items: const [
+                  DropdownMenuItem(value: 'none', child: Text('No size / Single size')),
                   DropdownMenuItem(value: 'small', child: Text('Small')),
                   DropdownMenuItem(value: 'big', child: Text('Big')),
                 ],
                 onChanged: (value) {
                   setState(() {
-                    _size = value ?? 'small';
+                    _size = value ?? 'none';
                   });
                 },
               ),

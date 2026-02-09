@@ -26,8 +26,8 @@ class _EditProductScreenState extends State<EditProductScreen> {
   late TextEditingController _priceController;
   late TextEditingController _costController;
   late TextEditingController _descriptionController;
-  late String _series; // Series: Tiramisu or Cheesekut
-  late String _size; // Size: small or big
+  late String _series; // Series: Tiramisu, Cheesekut, Banana Pudding, Others
+  late String _size; // Size: small, big or none (optional)
   late bool _isActive;
   final FirestoreService _fs = FirestoreService();
   File? _selectedImage;
@@ -43,7 +43,10 @@ class _EditProductScreenState extends State<EditProductScreen> {
     // Use variant field to store series, default to Tiramisu if not found
     _series = widget.product.variant;
     // If variant is old format (normal/small), default to Tiramisu
-    if (_series != 'Tiramisu' && _series != 'Cheesekut') {
+    if (_series != 'Tiramisu' &&
+        _series != 'Cheesekut' &&
+        _series != 'Banana Pudding' &&
+        _series != 'Others') {
       _series = 'Tiramisu';
     }
     // Initialize size from product.size or infer from price
@@ -105,7 +108,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
       imageUrl: _imagePath ?? widget.product.imageUrl ?? 'assets/images/placeholder.jpg',
       description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
       isActive: _isActive,
-      size: _size,
+      size: _size == 'none' ? null : _size,
     );
 
     _fs.updateProduct(updatedProduct);
@@ -170,7 +173,7 @@ class _EditProductScreenState extends State<EditProductScreen> {
                 ),
                 prefixIcon: Icon(Icons.category),
               ),
-              items: ['Tiramisu', 'Cheesekut']
+              items: ['Tiramisu', 'Cheesekut', 'Banana Pudding', 'Others']
                   .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                   .toList(),
               onChanged: (s) => setState(() => _series = s!),
@@ -180,19 +183,20 @@ class _EditProductScreenState extends State<EditProductScreen> {
             DropdownButtonFormField<String>(
               value: _size,
               decoration: InputDecoration(
-                labelText: "Size",
+                labelText: "Size (optional)",
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
                 prefixIcon: Icon(Icons.aspect_ratio),
               ),
               items: const [
+                DropdownMenuItem(value: 'none', child: Text('No size / Single size')),
                 DropdownMenuItem(value: 'small', child: Text('Small')),
                 DropdownMenuItem(value: 'big', child: Text('Big')),
               ],
               onChanged: (value) {
                 setState(() {
-                  _size = value ?? 'small';
+                  _size = value ?? 'none';
                 });
               },
             ),

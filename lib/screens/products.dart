@@ -21,7 +21,7 @@ class _ProductsScreenState extends State<ProductsScreen> with SingleTickerProvid
   final FirestoreService _fs = FirestoreService();
   final TextEditingController _searchController = TextEditingController();
   bool _showInactive = false;
-  String _selectedFilter = 'all'; // 'all', 'Tiramisu', 'Cheesekut', 'small', 'big'
+  String _selectedFilter = 'all'; // 'all', 'Tiramisu', 'Cheesekut', 'Banana Pudding', 'Others', 'small', 'big'
   bool _showFilters = false;
   late AnimationController _filterAnimationController;
   late Animation<double> _filterAnimation;
@@ -191,6 +191,8 @@ class _ProductsScreenState extends State<ProductsScreen> with SingleTickerProvid
                       _buildFilterChip('All', 'all'),
                       _buildFilterChip('Tiramisu', 'Tiramisu'),
                       _buildFilterChip('Cheesekut', 'Cheesekut'),
+                    _buildFilterChip('Banana Pudding', 'Banana Pudding'),
+                    _buildFilterChip('Others', 'Others'),
                       _buildFilterChip('Small', 'small'),
                       _buildFilterChip('Big', 'big'),
                     ],
