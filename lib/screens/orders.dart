@@ -403,7 +403,7 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
                   
                   var allOrders = snapshot.data!;
                   var orders = allOrders.where((order) {
-                    final hasItems = order.items.isNotEmpty;
+                    final hasItems = order.displayItems.isNotEmpty;
                     final hasComboPacks = order.comboPacks.isNotEmpty && 
                         order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
                     final hasValidPcs = order.totalPcs > 0;
@@ -420,7 +420,7 @@ class _OrdersScreenState extends State<OrdersScreen> with SingleTickerProviderSt
                   final pendingCount = orders.where((o) => o.status == 'pending').length;
                   final completedCount = orders.where((o) => o.status == 'completed').length;
                   final totalRevenue = orders.fold(0.0, (sum, order) => sum + order.totalPrice);
-                  final totalPieces = orders.fold(0, (sum, order) => sum + order.totalPcs);
+                  final totalPieces = orders.fold(0, (sum, order) => sum + order.displayTotalPcs);
                   
                   if (orders.isEmpty) {
                     return SmoothReveal(

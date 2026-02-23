@@ -11,10 +11,11 @@ class SummaryService {
 
     // Filter out invalid/deleted orders (orders with no items, zero pieces, or zero price)
     final orders = allOrders.where((order) {
-      final hasItems = order.items.isNotEmpty;
+      final display = order.displayItems;
+      final hasItems = display.isNotEmpty;
       final hasComboPacks = order.comboPacks.isNotEmpty && 
           order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
-      final hasValidPcs = order.totalPcs > 0;
+      final hasValidPcs = order.displayTotalPcs > 0;
       final hasValidPrice = order.totalPrice > 0;
       return (hasItems || hasComboPacks) && hasValidPcs && hasValidPrice;
     }).toList();
@@ -31,11 +32,7 @@ class SummaryService {
 
     // Process orders
     for (var order in orders) {
-      // Recalculate total pieces to avoid relying on stored totalPcs
-      int orderPcs = 0;
-      order.items.forEach((_, quantity) {
-        orderPcs += quantity;
-      });
+      int orderPcs = order.displayTotalPcs;
       order.comboPacks.forEach((_, allocation) {
         allocation.forEach((_, quantity) {
           orderPcs += quantity;
@@ -43,11 +40,9 @@ class SummaryService {
       });
 
       totalPcs += orderPcs;
-      // Include COD fee in total revenue (order.totalPrice already includes COD fee when order was saved)
       totalRevenue += order.totalPrice;
 
-      // Count flavors from single items
-      order.items.forEach((flavor, quantity) {
+      order.displayItems.forEach((flavor, quantity) {
         final currentCount = flavorCount[flavor] ?? 0;
         flavorCount[flavor] = currentCount + quantity;
       });
@@ -88,10 +83,11 @@ class SummaryService {
 
     // Filter out invalid/deleted orders (orders with no items, zero pieces, or zero price)
     final orders = allOrders.where((order) {
-      final hasItems = order.items.isNotEmpty;
+      final display = order.displayItems;
+      final hasItems = display.isNotEmpty;
       final hasComboPacks = order.comboPacks.isNotEmpty && 
           order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
-      final hasValidPcs = order.totalPcs > 0;
+      final hasValidPcs = order.displayTotalPcs > 0;
       final hasValidPrice = order.totalPrice > 0;
       return (hasItems || hasComboPacks) && hasValidPcs && hasValidPrice;
     }).toList();
@@ -108,11 +104,7 @@ class SummaryService {
 
     // Process orders
     for (var order in orders) {
-      // Recalculate total pieces to avoid relying on stored totalPcs
-      int orderPcs = 0;
-      order.items.forEach((_, quantity) {
-        orderPcs += quantity;
-      });
+      int orderPcs = order.displayTotalPcs;
       order.comboPacks.forEach((_, allocation) {
         allocation.forEach((_, quantity) {
           orderPcs += quantity;
@@ -120,11 +112,9 @@ class SummaryService {
       });
 
       totalPcs += orderPcs;
-      // Include COD fee in total revenue (order.totalPrice already includes COD fee when order was saved)
       totalRevenue += order.totalPrice;
 
-      // Count flavors from single items
-      order.items.forEach((flavor, quantity) {
+      order.displayItems.forEach((flavor, quantity) {
         final currentCount = flavorCount[flavor] ?? 0;
         flavorCount[flavor] = currentCount + quantity;
       });

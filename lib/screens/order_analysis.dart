@@ -381,8 +381,8 @@ class _OrderAnalysisScreenState extends State<OrderAnalysisScreen> with SingleTi
       }
       
       var orders = allOrders.where((order) {
-        final hasItems = order.items.isNotEmpty;
-        final hasValidPcs = order.totalPcs > 0;
+        final hasItems = order.displayItems.isNotEmpty;
+        final hasValidPcs = order.displayTotalPcs > 0;
         final hasValidPrice = order.totalPrice > 0;
         return hasItems && hasValidPcs && hasValidPrice;
       }).toList();
@@ -580,9 +580,9 @@ class _OrderAnalysisScreenState extends State<OrderAnalysisScreen> with SingleTi
                     final order2 = i + 1 < orderList.length ? orderList[i + 1] : null;
                     
                     List<pw.Widget> order1Items = [];
-                    if (order1.items.isNotEmpty) {
+                    if (order1.displayItems.isNotEmpty) {
                       int colorIndex = 0;
-                      order1.items.forEach((itemName, quantity) {
+                      order1.displayItems.forEach((itemName, quantity) {
                         final formattedName = _formatItemName(itemName);
                         order1Items.add(
                           pw.Text(
@@ -604,7 +604,7 @@ class _OrderAnalysisScreenState extends State<OrderAnalysisScreen> with SingleTi
                             '• $flavorName (Combo): $quantity pcs',
                             style: pw.TextStyle(
                               fontSize: 9,
-                              color: itemColors[order1.items.length % itemColors.length],
+                              color: itemColors[order1.displayItems.length % itemColors.length],
                             ),
                           ),
                         );
@@ -612,9 +612,9 @@ class _OrderAnalysisScreenState extends State<OrderAnalysisScreen> with SingleTi
                     });
                     
                     List<pw.Widget> order2Items = [];
-                    if (order2 != null && order2.items.isNotEmpty) {
+                    if (order2 != null && order2.displayItems.isNotEmpty) {
                       int colorIndex = 0;
-                      order2.items.forEach((itemName, quantity) {
+                      order2.displayItems.forEach((itemName, quantity) {
                         final formattedName = _formatItemName(itemName);
                         order2Items.add(
                           pw.Text(
@@ -637,7 +637,7 @@ class _OrderAnalysisScreenState extends State<OrderAnalysisScreen> with SingleTi
                               '• $flavorName (Combo): $quantity pcs',
                               style: pw.TextStyle(
                                 fontSize: 9,
-                                color: itemColors[order2.items.length % itemColors.length],
+                                color: itemColors[order2.displayItems.length % itemColors.length],
                               ),
                             ),
                           );
@@ -1345,7 +1345,7 @@ class _OrderAnalysisScreenState extends State<OrderAnalysisScreen> with SingleTi
     
     for (var order in orders) {
       // Process single items
-      order.items.forEach((itemName, quantity) {
+      order.displayItems.forEach((itemName, quantity) {
         final info = _extractFlavorSeriesAndSize(itemName);
         final series = info['series']!;
         final size = info['size']!;

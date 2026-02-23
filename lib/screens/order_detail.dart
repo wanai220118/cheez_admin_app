@@ -85,7 +85,8 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
         codAddress: _order.codAddress,
         paymentChannel: _order.paymentChannel,
         items: _order.items,
-        comboPacks: {},
+        comboPacks: _order.comboPacks,
+        bundlePackages: _order.bundlePackages,
         totalPcs: _order.totalPcs,
         totalPrice: _order.totalPrice,
         status: _order.status,
@@ -274,10 +275,10 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
             ),
             SizedBox(height: 16),
 
-            // Single Items
-            if (_order.items.isNotEmpty) ...[
+            // Order Items (real product names and quantities; bundles expanded)
+            if (_order.displayItems.isNotEmpty) ...[
               Text(
-                "Single Items",
+                "Order Items",
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -286,7 +287,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
               SizedBox(height: 8),
               Card(
                 child: Column(
-                  children: _order.items.entries
+                  children: _order.displayItems.entries
                       .where((e) => e.value > 0)
                       .map((entry) => FlavorCountTile(
                             flavor: entry.key,
@@ -306,7 +307,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                 padding: EdgeInsets.all(16),
                 child: Column(
                   children: [
-                    _buildSummaryRow("Total Pieces", "${_order.totalPcs} pcs"),
+                    _buildSummaryRow("Total Pieces", "${_order.displayTotalPcs} pcs"),
                     Divider(),
                     _buildSummaryRow(
                       "Total Price",
@@ -405,6 +406,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         paymentChannel: _order.paymentChannel,
                         items: _order.items,
                         comboPacks: _order.comboPacks,
+                        bundlePackages: _order.bundlePackages,
                         totalPcs: _order.totalPcs,
                         totalPrice: _order.totalPrice,
                         status: _order.status,
@@ -465,6 +467,7 @@ class _OrderDetailScreenState extends State<OrderDetailScreen> {
                         paymentChannel: value,
                         items: _order.items,
                         comboPacks: _order.comboPacks,
+                        bundlePackages: _order.bundlePackages,
                         totalPcs: _order.totalPcs,
                         totalPrice: _order.totalPrice,
                         status: _order.status,

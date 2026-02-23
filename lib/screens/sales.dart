@@ -272,10 +272,10 @@ class _SalesScreenState extends State<SalesScreen> {
       }
 
       final orders = allOrders.where((order) {
-        final hasItems = order.items.isNotEmpty;
+        final hasItems = order.displayItems.isNotEmpty;
         final hasComboPacks = order.comboPacks.isNotEmpty && 
             order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
-        final hasValidPcs = order.totalPcs > 0;
+        final hasValidPcs = order.displayTotalPcs > 0;
         final hasValidPrice = order.totalPrice > 0;
         return (hasItems || hasComboPacks) && hasValidPcs && hasValidPrice;
       }).toList();
@@ -293,7 +293,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
       for (var order in orders) {
         int orderPcs = 0;
-        order.items.forEach((itemName, quantity) {
+        order.displayItems.forEach((itemName, quantity) {
           productSales[itemName] = (productSales[itemName] ?? 0) + quantity;
           orderPcs += quantity;
         });
@@ -309,7 +309,7 @@ class _SalesScreenState extends State<SalesScreen> {
 
         if (orderPcs > 0) {
           final pricePerPc = order.totalPrice / orderPcs;
-          order.items.forEach((itemName, quantity) {
+          order.displayItems.forEach((itemName, quantity) {
             productRevenue[itemName] = (productRevenue[itemName] ?? 0.0) + (quantity * pricePerPc);
           });
           order.comboPacks.forEach((_, allocation) {
@@ -654,10 +654,10 @@ class _SalesScreenState extends State<SalesScreen> {
                 
                 final allOrders = snapshot.data!;
                 final orders = allOrders.where((order) {
-                  final hasItems = order.items.isNotEmpty;
+                  final hasItems = order.displayItems.isNotEmpty;
                   final hasComboPacks = order.comboPacks.isNotEmpty && 
                       order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
-                  final hasValidPcs = order.totalPcs > 0;
+                  final hasValidPcs = order.displayTotalPcs > 0;
                   final hasValidPrice = order.totalPrice > 0;
                   return (hasItems || hasComboPacks) && hasValidPcs && hasValidPrice;
                 }).toList();
@@ -680,7 +680,7 @@ class _SalesScreenState extends State<SalesScreen> {
                 
                 for (var order in orders) {
                   int orderPcs = 0;
-                  order.items.forEach((itemName, quantity) {
+                  order.displayItems.forEach((itemName, quantity) {
                     productSales[itemName] = (productSales[itemName] ?? 0) + quantity;
                     orderPcs += quantity;
                   });
@@ -697,7 +697,7 @@ class _SalesScreenState extends State<SalesScreen> {
                   
                   if (orderPcs > 0) {
                     final pricePerPc = order.totalPrice / orderPcs;
-                    order.items.forEach((itemName, quantity) {
+                    order.displayItems.forEach((itemName, quantity) {
                       productRevenue[itemName] = (productRevenue[itemName] ?? 0.0) + (quantity * pricePerPc);
                     });
                     order.comboPacks.forEach((_, allocation) {

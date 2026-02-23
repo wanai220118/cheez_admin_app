@@ -27,7 +27,7 @@ class PriceCalculator {
     double total = 0.0;
 
     // Add single items
-    order.items.forEach((name, quantity) {
+    order.displayItems.forEach((name, quantity) {
       if (quantity > 0) {
         final product = products.firstWhere(
           (p) => p.name == name,

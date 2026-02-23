@@ -21,11 +21,7 @@ class OrderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isCompleted = order.status == 'completed';
 
-    // Recalculate total pieces from items and combo packs
-    int pcs = 0;
-    order.items.forEach((_, quantity) {
-      pcs += quantity;
-    });
+    int pcs = order.displayTotalPcs;
     order.comboPacks.forEach((_, allocation) {
       allocation.forEach((_, quantity) {
         pcs += quantity;

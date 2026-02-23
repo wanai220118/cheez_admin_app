@@ -267,7 +267,7 @@ class HtmlReceiptGenerator {
     // Build table rows for all items with prices
     List<Map<String, dynamic>> allItemsList = [];
     
-    order.items.forEach((itemName, quantity) {
+    order.displayItems.forEach((itemName, quantity) {
       // Parse format: "ProductName (Variant, Size)" or "ProductName (Variant)"
       String displayName = itemName;
       String? size;
@@ -663,7 +663,7 @@ class HtmlReceiptGenerator {
             <div class="total-section">
                 <div class="total-row">
                     <span>Jumlah Pcs:</span>
-                    <span style="font-weight: 600;">${order.totalPcs} pcs</span>
+                    <span style="font-weight: 600;">${order.displayTotalPcs} pcs</span>
                 </div>
                 <div class="total-row">
                     <span>Jumlah:</span>

@@ -327,16 +327,16 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             if (ordersSnapshot.hasData) {
               final allOrders = ordersSnapshot.data!;
               final orders = allOrders.where((order) {
-                final hasItems = order.items.isNotEmpty;
+                final hasItems = order.displayItems.isNotEmpty;
                 final hasComboPacks = order.comboPacks.isNotEmpty && 
                     order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
-                final hasValidPcs = order.totalPcs > 0;
+                final hasValidPcs = order.displayTotalPcs > 0;
                 final hasValidPrice = order.totalPrice > 0;
                 return (hasItems || hasComboPacks) && hasValidPcs && hasValidPrice;
               }).toList();
               
               totalOrdersToday = orders.length;
-              totalPcsToday = orders.fold(0, (sum, order) => sum + order.totalPcs);
+              totalPcsToday = orders.fold(0, (sum, order) => sum + order.displayTotalPcs);
               totalRevenue = orders.fold(0.0, (sum, order) => sum + order.totalPrice);
             }
 
@@ -419,7 +419,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           final hasItems = order.items.isNotEmpty;
           final hasComboPacks = order.comboPacks.isNotEmpty && 
               order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
-          final hasValidPcs = order.totalPcs > 0;
+          final hasValidPcs = order.displayTotalPcs > 0;
           final hasValidPrice = order.totalPrice > 0;
           return (hasItems || hasComboPacks) && hasValidPcs && hasValidPrice;
         }).toList();
@@ -442,7 +442,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         for (int i = 0; i < 7; i++) {
           final dayOrders = ordersByDay[i] ?? [];
           final revenue = dayOrders.fold(0.0, (sum, order) => sum + order.totalPrice);
-          final pcs = dayOrders.fold(0, (sum, order) => sum + order.totalPcs) as int;
+          final pcs = dayOrders.fold(0, (sum, order) => sum + order.displayTotalPcs) as int;
           final orderCount = dayOrders.length;
           
           weeklyStats.add({
@@ -524,16 +524,16 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         if (ordersSnapshot.hasData) {
           final allOrders = ordersSnapshot.data!;
           final orders = allOrders.where((order) {
-            final hasItems = order.items.isNotEmpty;
+            final hasItems = order.displayItems.isNotEmpty;
             final hasComboPacks = order.comboPacks.isNotEmpty && 
                 order.comboPacks.values.any((allocation) => allocation.isNotEmpty);
-            final hasValidPcs = order.totalPcs > 0;
+            final hasValidPcs = order.displayTotalPcs > 0;
             final hasValidPrice = order.totalPrice > 0;
             return (hasItems || hasComboPacks) && hasValidPcs && hasValidPrice;
           }).toList();
           
           totalOrdersAll = orders.length;
-          totalPcsAll = orders.fold(0, (sum, order) => sum + order.totalPcs);
+          totalPcsAll = orders.fold(0, (sum, order) => sum + order.displayTotalPcs);
           totalRevenueAll = orders.fold(0.0, (sum, order) => sum + order.totalPrice);
         }
 

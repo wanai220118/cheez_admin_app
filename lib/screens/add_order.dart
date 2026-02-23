@@ -290,7 +290,11 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
   String? _selectedCustomerId;
   
   Map<String, Map<String, int>> singleItems = {};
-  
+  /// Bundle packages: each has "items" (itemKey -> qty) and "finalPrice". For custom bundles and profit tracking.
+  List<Map<String, dynamic>> bundlePackages = [];
+  /// 0 = Select Products tab, 1 = Bundle Package tab
+  int _selectedProductTab = 0;
+
   List<Product> allProducts = [];
   String selectedSeriesFilter = 'all';
   String selectedSizeFilter = 'all';
@@ -332,6 +336,10 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       }
       
       order.items.forEach((itemName, quantity) {
+        // Skip bundle line items (stored separately in bundlePackages)
+        if (itemName.startsWith('Bundle')) {
+          return;
+        }
         // Try to parse format: "ProductName (Variant, Size)" or "ProductName (Variant)"
         final matchWithSize = RegExp(r'^(.+?)\s*\((.+?),\s*(.+?)\)$').firstMatch(itemName);
         final matchWithoutSize = RegExp(r'^(.+?)\s*\((.+?)\)$').firstMatch(itemName);
@@ -366,6 +374,22 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
           }
         }
       });
+      // Load bundle packages if present
+      if (order.bundlePackages != null && order.bundlePackages!.isNotEmpty) {
+        bundlePackages = order.bundlePackages!.map((e) {
+          final itemsMap = e['items'];
+          final Map<String, int> copy = {};
+          if (itemsMap is Map) {
+            (itemsMap as Map<dynamic, dynamic>).forEach((k, v) {
+              copy[k.toString()] = v is int ? v : (v as num).toInt();
+            });
+          }
+          return <String, dynamic>{
+            'items': copy,
+            'finalPrice': e['finalPrice'] is double ? e['finalPrice'] : (e['finalPrice'] as num).toDouble(),
+          };
+        }).toList();
+      }
     }
   }
 
@@ -473,6 +497,12 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       total += price;
     });
 
+    // Add bundle package final prices
+    for (final b in bundlePackages) {
+      final price = b['finalPrice'];
+      if (price != null) total += (price is double ? price : (price as num).toDouble());
+    }
+
     return total;
   }
 
@@ -485,6 +515,12 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
         }
       });
     });
+    for (final b in bundlePackages) {
+      final items = b['items'] as Map<String, int>?;
+      if (items != null) {
+        items.forEach((_, qty) { totalPcs += qty; });
+      }
+    }
     return totalPcs;
   }
 
@@ -596,9 +632,9 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━');
     buffer.writeln('');
     
-    // Collect all items with prices
+    // Collect all items with prices (use displayItems so bundles show as real products)
     List<Map<String, dynamic>> itemsList = [];
-    order.items.forEach((itemName, quantity) {
+    order.displayItems.forEach((itemName, quantity) {
       // Parse format: "ProductName (Variant, Size)" or "ProductName (Variant)"
       String displayName = itemName;
       String? variant;
@@ -701,7 +737,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     
     buffer.writeln('*Ringkasan:*');
     buffer.writeln('━━━━━━━━━━━━━━━━━━━━━━');
-    buffer.writeln('Jumlah Keping: *${order.totalPcs} pcs*');
+    buffer.writeln('Jumlah Keping: *${order.displayTotalPcs} pcs*');
     buffer.writeln('Jumlah: ${PriceCalculator.formatPrice(orderPrice)}');
     if (paymentMethod == 'cod' && codFee > 0) {
       buffer.writeln('Yuran COD: ${PriceCalculator.formatPrice(codFee)}');
@@ -852,6 +888,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     }
 
     Map<String, int> orderItems = {};
+    // Normal products from main selector
     singleItems.forEach((productName, variants) {
       variants.forEach((variantKey, quantity) {
         if (quantity > 0) {
@@ -861,14 +898,28 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
             final variant = parts[0];
             final size = parts.length > 1 ? parts[1] : '';
             // Save with size: "ProductName (Variant, Size)"
-            orderItems['$productName ($variant, $size)'] = quantity;
+            orderItems['$productName ($variant, $size)'] =
+                (orderItems['$productName ($variant, $size)'] ?? 0) + quantity;
           } else {
             // Old format without size (backward compatibility)
-            orderItems['$productName ($variantKey)'] = quantity;
+            orderItems['$productName ($variantKey)'] =
+                (orderItems['$productName ($variantKey)'] ?? 0) + quantity;
           }
         }
       });
     });
+    // Bundle packages: merge real product quantities into items map for analytics
+    for (final b in bundlePackages) {
+      final items = b['items'];
+      if (items is Map) {
+        (items as Map<dynamic, dynamic>).forEach((key, qty) {
+          final q = qty is int ? qty : (qty as num?)?.toInt() ?? 0;
+          if (q <= 0) return;
+          final itemKey = key.toString();
+          orderItems[itemKey] = (orderItems[itemKey] ?? 0) + q;
+        });
+      }
+    }
 
     final orderPrice = _calculateTotal();
     final order = Order(
@@ -884,6 +935,9 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
       paymentChannel: paymentChannel,
       items: orderItems,
       comboPacks: {},
+      bundlePackages: bundlePackages.isEmpty
+          ? null
+          : bundlePackages.map((e) => {'items': e['items'], 'finalPrice': e['finalPrice']}).toList(),
       totalPcs: totalPcs,
       totalPrice: orderPrice + (paymentMethod == 'cod' ? codFee : 0.0),
       status: widget.existingOrder?.status ?? 'pending',
@@ -1100,6 +1154,39 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
     nameController.dispose();
     contactController.dispose();
     addressController.dispose();
+  }
+
+  /// Returns item keys for bundle product dropdown: "ProductName (Variant, Size)".
+  List<String> _getProductItemKeys() {
+    final keys = <String>[];
+    for (var product in allProducts) {
+      if (product.variant == 'combo') continue;
+      final size = _getProductSize(product);
+      keys.add('${product.name} (${product.variant}, $size)');
+    }
+    return keys..sort();
+  }
+
+  /// Cost of a bundle (sum of product costs × qty). Used for profit display.
+  double _getBundleCost(Map<String, int> items) {
+    double cost = 0.0;
+    items.forEach((itemKey, qty) {
+      try {
+        final matchWithSize = RegExp(r'^(.+?)\s*\((.+?),\s*(.+?)\)$').firstMatch(itemKey);
+        if (matchWithSize == null) return;
+        final productName = matchWithSize.group(1)!.trim();
+        final variant = matchWithSize.group(2)!.trim();
+        final size = matchWithSize.group(3)!.trim();
+        final product = allProducts.firstWhere(
+          (p) {
+            final pSize = _getProductSize(p);
+            return p.name == productName && p.variant == variant && pSize == size;
+          },
+        );
+        cost += product.cost * qty;
+      } catch (_) {}
+    });
+    return cost;
   }
 
   // Helper function to determine product size consistently
@@ -1758,16 +1845,76 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                     
                     SizedBox(height: 24),
                     
-                    // Products Section
+                    // Products / Bundles Section
                     _buildSectionHeader(
                       icon: Icons.shopping_basket_rounded,
-                      title: "Select Products",
+                      title: "Products",
                       color: Colors.purple,
                     ),
                     SizedBox(height: 12),
+                    // Tabs: Select Products | Bundle Package
+                    Row(
+                      children: [
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setState(() => _selectedProductTab = 0),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _selectedProductTab == 0 ? Colors.purple.withOpacity(0.1) : Colors.grey[100],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _selectedProductTab == 0 ? Colors.purple : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  "Select Products",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedProductTab == 0 ? Colors.purple : Colors.grey[700],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => setState(() => _selectedProductTab = 1),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: _selectedProductTab == 1 ? Colors.teal.withOpacity(0.1) : Colors.grey[100],
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: _selectedProductTab == 1 ? Colors.teal : Colors.transparent,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  "Bundle Package",
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedProductTab == 1 ? Colors.teal[700] : Colors.grey[700],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 16),
                     
-                    // Filters in a compact card
-                    Container(
+                    if (_selectedProductTab == 0) ...[
+                      // Filters in a compact card
+                      Container(
                       padding: EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -1780,7 +1927,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                           ),
                         ],
                       ),
-                      child: Row(
+                        child: Row(
                         children: [
                           Expanded(
                             child: Column(
@@ -1848,12 +1995,12 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                             ),
                           ),
                         ],
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 16),
-                    
-                    // Product List - Filter and display products
-                    ...() {
+                      SizedBox(height: 16),
+                      
+                      // Product List - Filter and display products
+                      ...() {
                       // Map to track unique products by name+variant+size
                       Map<String, Product> uniqueProducts = {};
                       
@@ -1914,7 +2061,7 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                           return 0;
                         });
                       
-                      return sortedProducts.map((product) {
+                        return sortedProducts.map((product) {
                         final productName = product.name;
                         if (!singleItems.containsKey(productName)) {
                           singleItems[productName] = {};
@@ -1929,15 +2076,18 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
                         final currentQuantity = singleItems[productName]![variantKey] ?? 0;
                         
                         // Pass the actual product object to ensure correct matching
-                        return _buildProductCardFromProduct(
+                          return _buildProductCardFromProduct(
                           product,
                           currentQuantity,
                           (newQuantity) {
                             singleItems[productName]![variantKey] = newQuantity;
                           },
-                        );
-                      }).toList();
-                    }(),
+                          );
+                        }).toList();
+                      }(),
+                    ] else ...[
+                      _buildBundlePackageSection(),
+                    ],
                     SizedBox(height: 80),
                   ],
                 ),
@@ -2093,6 +2243,198 @@ class _AddOrderScreenState extends State<AddOrderScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildBundlePackageSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(
+          icon: Icons.inventory_2_rounded,
+          title: "Bundle Package",
+          color: Colors.teal,
+        ),
+        SizedBox(height: 8),
+        Text(
+          "Add custom bundles with your chosen products, quantities, and final selling price. Quantity and profit are recorded.",
+          style: TextStyle(
+            fontSize: 12,
+            color: Colors.grey[600],
+          ),
+        ),
+        SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () {
+            setState(() {
+              bundlePackages.add({
+                'items': <String, int>{},
+                'finalPrice': 0.0,
+              });
+            });
+          },
+          icon: Icon(Icons.add_rounded, size: 20),
+          label: Text("Add bundle"),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.teal[700],
+            side: BorderSide(color: Colors.teal),
+          ),
+        ),
+        SizedBox(height: 12),
+        ...List.generate(bundlePackages.length, (bundleIndex) {
+          final bundle = bundlePackages[bundleIndex];
+          final items = bundle['items'] as Map<String, int>;
+          final finalPrice = (bundle['finalPrice'] as num?)?.toDouble() ?? 0.0;
+          final cost = _getBundleCost(items);
+          final profit = finalPrice - cost;
+          final itemKeys = _getProductItemKeys();
+          return Card(
+            margin: EdgeInsets.only(bottom: 12),
+            elevation: 2,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        "Bundle ${bundleIndex + 1}",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.grey[800],
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () {
+                          setState(() => bundlePackages.removeAt(bundleIndex));
+                        },
+                        tooltip: "Remove bundle",
+                      ),
+                    ],
+                  ),
+                  ...items.entries.map((e) {
+                    final itemKey = e.key;
+                    final qty = e.value;
+                    return Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              itemKey,
+                              style: TextStyle(fontSize: 13),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: Icon(Icons.remove, size: 18),
+                                  onPressed: qty <= 1
+                                      ? null
+                                      : () {
+                                          setState(() {
+                                            if (qty <= 1) items.remove(itemKey);
+                                            else items[itemKey] = qty - 1;
+                                          });
+                                        },
+                                ),
+                                Text("$qty", style: TextStyle(fontWeight: FontWeight.w600)),
+                                IconButton(
+                                  icon: Icon(Icons.add, size: 18),
+                                  onPressed: () {
+                                    setState(() => items[itemKey] = qty + 1);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.close, size: 18, color: Colors.grey),
+                            onPressed: () {
+                              setState(() => items.remove(itemKey));
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  }),
+                  if (itemKeys.isNotEmpty)
+                    Padding(
+                      padding: EdgeInsets.only(bottom: 8),
+                      child: DropdownButtonFormField<String>(
+                        value: null,
+                        decoration: InputDecoration(
+                          labelText: "Add product to bundle",
+                          isDense: true,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        items: itemKeys.map((key) => DropdownMenuItem(value: key, child: Text(key, overflow: TextOverflow.ellipsis))).toList(),
+                        onChanged: (key) {
+                          if (key == null) return;
+                          setState(() => items[key] = (items[key] ?? 0) + 1);
+                        },
+                      ),
+                    ),
+                  TextFormField(
+                    initialValue: finalPrice > 0 ? finalPrice.toStringAsFixed(2) : '',
+                    decoration: InputDecoration(
+                      labelText: "Final price (RM)",
+                      prefixText: "RM ",
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                    keyboardType: TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (v) {
+                      final p = double.tryParse(v.trim());
+                      setState(() => bundle['finalPrice'] = p ?? 0.0);
+                    },
+                  ),
+                  if (items.isNotEmpty) ...[
+                    SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Cost (components):", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                        Text(
+                          PriceCalculator.formatPrice(cost),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text("Profit:", style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+                        Text(
+                          PriceCalculator.formatPrice(profit),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: profit >= 0 ? Colors.green[700] : Colors.red[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
     );
   }
 

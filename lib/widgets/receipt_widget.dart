@@ -436,7 +436,7 @@ class ReceiptWidget extends StatelessWidget {
                       padding: EdgeInsets.all(12),
                       child: Column(
                         children: [
-                          _buildTotalRow('Jumlah Pcs:', '${order.totalPcs} pcs'),
+                          _buildTotalRow('Jumlah Pcs:', '${order.displayTotalPcs} pcs'),
                           SizedBox(height: 4),
                           _buildTotalRow('Jumlah:', PriceCalculator.formatPrice(orderPrice)),
                           if (order.paymentMethod == 'cod') ...[
@@ -625,7 +625,7 @@ class ReceiptWidget extends StatelessWidget {
     // Build list of all items for table with prices
     List<Map<String, dynamic>> allItemsList = [];
     
-    order.items.forEach((itemName, quantity) {
+    order.displayItems.forEach((itemName, quantity) {
       // Parse format: "ProductName (Variant, Size)" or "ProductName (Variant)"
       String displayName = itemName;
       String? size;
